@@ -1,12 +1,12 @@
 # Cute Snake
 
-Silly implementation of the game Snake using [Cute Framework](https://github.com/RandyGaul/cute_framework) (CF) to be used as an example of how CF can be used to implement a small 2D game.
+A silly implementation of the game Snake as an example of how to make a small 2D game using [Cute Framework](https://github.com/RandyGaul/cute_framework) (CF).
 
 ## Building
 
-* Install [cmake](https://cmake.org/)
-* Run the usual cmake commands to trigger a build. Here are a couple example for Windows or MacOS.
-* A few scripts are provided, for example on Windows you can build with MSVC 2019 by running `msvc2019.cmd`, or with MingW by running `mingw.cmd`.
+* Install [cmake](https://cmake.org/).
+* Run the usual cmake commands to trigger a build (cmake -G ..., and cmake --build, etc.).
+* A few scripts are provided for those unfamiliar with cmake, for example on Windows you can build with MSVC 2019 by running `msvc2019.cmd`, or with MingW by running `mingw.cmd`.
 
 ```cmd
 # Windows batch file to build Cute Snake via cmake with a MingW compiler.

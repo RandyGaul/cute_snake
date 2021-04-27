@@ -30,3 +30,10 @@ add_executable(
 target_link_libraries(snake cute)
 
 # TODO - Emscripten.
+
+# For convenience set MSVC debugger's working directory in the build folder.
+# Also ask MSVC to make snake the startup project.
+if (MSVC)
+	set_property(TARGET snake PROPERTY VS_DEBUGGER_WORKING_DIRECTORY $<TARGET_FILE_DIR:snake>)
+	set_property(DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR} PROPERTY VS_STARTUP_PROJECT snake)
+endif()
