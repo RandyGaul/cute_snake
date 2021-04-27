@@ -6,6 +6,7 @@ Silly implementation of the game Snake using [Cute Framework](https://github.com
 
 * Install [cmake](https://cmake.org/)
 * Run the usual cmake commands to trigger a build. Here are a couple example for Windows or MacOS.
+* A few scripts are provided, for example on Windows you can build with MSVC 2019 by running `msvc2019.cmd`, or with MingW by running `mingw.cmd`.
 
 ```cmd
 # Windows batch file to build Cute Snake via cmake with a MingW compiler.
