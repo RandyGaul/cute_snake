@@ -78,6 +78,9 @@ int main(int argc, const char** argv)
 	while (app_is_running(app) && coroutine_state(preamble) != COROUTINE_STATE_DEAD) {
 		float dt = calc_dt();
 		coroutine_resume(preamble, dt);
+		if (key_was_pressed(app, KEY_ANY)) {
+			break;
+		}
 	}
 	coroutine_destroy(preamble);
 
