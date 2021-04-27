@@ -19,11 +19,11 @@ void mount_content_folder()
 	file_system_mount(buf, "");
 }
 
-void do_title_screen(coroutine_t* co)
+void do_cute_preamble(coroutine_t* co)
 {
 	sprite_t cute = sprite_make(app, "cute.ase");
 	float t = 0;
-	const float elapse = 3;
+	const float elapse = 2;
 	const float pause = 1;
 
 	while (app_is_running(app) && t < elapse) {
@@ -74,14 +74,14 @@ int main(int argc, const char** argv)
 	audio_t* eat = audio_load_wav("eat.wav");
 	audio_t* select = audio_load_wav("select.wav");
 
-	coroutine_t* title = coroutine_make(do_title_screen);
-	while (app_is_running(app) && coroutine_state(title) != COROUTINE_STATE_DEAD) {
+	coroutine_t* preamble = coroutine_make(do_cute_preamble);
+	while (app_is_running(app) && coroutine_state(preamble) != COROUTINE_STATE_DEAD) {
 		float dt = calc_dt();
-		coroutine_resume(title, dt);
+		coroutine_resume(preamble, dt);
 	}
-	coroutine_destroy(title);
+	coroutine_destroy(preamble);
 
-	sprite_t title_screen = sprite_make(app, "title.ase");
+	sprite_t title = sprite_make(app, "title.ase");
 
 	while (app_is_running(app)) {
 		float dt = calc_dt();
@@ -91,7 +91,7 @@ int main(int argc, const char** argv)
 			sound_play(app, eat);
 		}
 		
-		title_screen.draw(b);
+		title.draw(b);
 		batch_flush(b);
 
 		app_present(app);
