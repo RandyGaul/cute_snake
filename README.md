@@ -1,3 +1,7 @@
+<p align="center">
+<img src=https://github.com/RandyGaul/cute_snake/blob/master/title.gif>
+</p>
+
 # Cute Snake
 
 A silly implementation of the game Snake as an example of how to make a small 2D game using [Cute Framework](https://github.com/RandyGaul/cute_framework) (CF).
