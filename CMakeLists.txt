@@ -24,7 +24,10 @@ FetchContent_MakeAvailable(cute)
 add_executable(
 	snake
 	src/main.cpp
+	src/shaders/light_shader.h
 )
+
+target_include_directories(snake PUBLIC $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/src>)
 
 # Make the game link against Cute Framework.
 target_link_libraries(snake cute)
