@@ -133,7 +133,7 @@ void s_uniforms(matrix_t mvp, color_t color)
 	sg_apply_uniforms(SG_SHADERSTAGE_FS, 0, &fs_params, sizeof(fs_params));
 }
 
-static void s_draw_lightrays()
+static void s_draw_white_shapes()
 {
 	sg_apply_pipeline(s_pip);
 	error_t err = triple_buffer_append(&s_buf, s_verts.count(), s_verts.data());
@@ -149,6 +149,7 @@ void title_screen(app_t* app)
 {
 	sprite_t title = sprite_make(app, "title.ase");
 	sprite_t cute_snake = sprite_make(app, "cute_snake.ase");
+	audio_t* go = audio_load_wav("go.wav");
 	s_shd = sg_make_shader(light_shd_shader_desc());
 	
 	sg_pipeline_desc params = { 0 };
@@ -209,55 +210,63 @@ void title_screen(app_t* app)
 		s_lightray(t + 3.5f, slice_size * 4.5f, r, c);
 		s_lightray(t + 5.0f, slice_size * 2.0f, r, c);
 
-		s_draw_lightrays();
+		s_draw_white_shapes();
 
 		cute_snake.draw(b);
 		batch_flush(b);
 
 		static bool skip = false;
-		if (key_was_pressed(app, KEY_ANY)) {
+		if (!skip && key_was_pressed(app, KEY_ANY)) {
 			skip = true;
+			sound_params_t params;
+			params.volume = 1.25f;
+			sound_play(app, go, params);
 		}
 
 		if (skip) {
 			skip_t += dt;
-			s_circle(skip_t * 100.0f, c);
-			if (skip_t >= 0.75f) {
+			s_circle(skip_t * 90.0f, c);
+			if (skip_t >= 0.85f) {
 				done = true;
 			}
 		}
 
-		s_draw_lightrays();
+		s_draw_white_shapes();
 
 		app_present(app);
 	}
 }
 
+audio_t* song;
 sprite_t wall;
 sprite_t weak_wall;
 sprite_t bomb;
+sprite_t hole;
 sprite_t snake_head;
 sprite_t snake_segment;
 sprite_t apple;
-v2 dir = v2(1, 0);
+v2 dir = v2(-1, 0);
 int snake_x;
 int snake_y;
 array<int> segments_x;
 array<int> segments_y;
 bool has_apple = false;
 bool has_bomb = false;
+bool has_hole = false;
 int apple_x;
 int apple_y;
 int bomb_x;
 int bomb_y;
+int hole_x;
+int hole_y;
 
 int current_level = 0;
 array<array<array<int>>> levels = {
 	{
 		{ 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, },
-		{ 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, },
 		{ 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, },
 		{ 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, },
+		{ 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, },
 		{ 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, },
 		{ 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, },
 		{ 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, },
@@ -268,18 +277,32 @@ array<array<array<int>>> levels = {
 		{ 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, },
 	},
 	{
+		{ 2, 2, 2, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 2, 2, 2, },
+		{ 2, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 2, },
+		{ 2, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 2, },
 		{ 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, },
-		{ 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, },
-		{ 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 3, },
-		{ 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 3, },
-		{ 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 3, },
-		{ 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, },
-		{ 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, },
+		{ 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, },
 		{ 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, },
 		{ 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, },
-		{ 2, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, },
-		{ 2, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, },
-		{ 2, 2, 2, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, },
+		{ 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, },
+		{ 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, },
+		{ 2, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 2, },
+		{ 2, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 2, },
+		{ 2, 2, 2, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 2, 2, 2, },
+	},
+	{
+		{ 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, },
+		{ 3, 0, 0, 0, 0, 0, 0, 3, 3, 0, 0, 0, 0, 0, 0, 3, },
+		{ 3, 0, 1, 0, 0, 0, 0, 3, 3, 0, 0, 0, 0, 0, 0, 3, },
+		{ 3, 0, 0, 0, 0, 0, 0, 3, 3, 0, 0, 0, 0, 0, 0, 3, },
+		{ 3, 0, 0, 0, 0, 0, 0, 3, 3, 0, 0, 0, 0, 0, 0, 3, },
+		{ 3, 0, 0, 0, 0, 0, 0, 3, 3, 0, 0, 0, 0, 0, 0, 3, },
+		{ 3, 0, 0, 0, 0, 0, 0, 3, 3, 0, 0, 0, 0, 0, 0, 3, },
+		{ 3, 0, 0, 0, 0, 0, 0, 3, 3, 0, 0, 0, 0, 0, 0, 3, },
+		{ 3, 0, 0, 0, 0, 0, 0, 3, 3, 0, 0, 0, 0, 0, 0, 3, },
+		{ 3, 0, 0, 0, 0, 0, 0, 3, 3, 0, 0, 0, 0, 0, 0, 3, },
+		{ 3, 0, 0, 0, 0, 0, 0, 3, 3, 0, 0, 0, 0, 0, 0, 3, },
+		{ 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, },
 	},
 };
 
@@ -311,13 +334,51 @@ int s_snake_spawn_y()
 	return 0;
 }
 
+void clear()
+{
+	segments_x.clear();
+	segments_y.clear();
+	has_apple = false;
+	has_bomb = false;
+	has_hole = false;
+	snake_x = s_snake_spawn_x();
+	snake_y = s_snake_spawn_y();
+	dir = v2(1, 0);
+
+	//@TODO
+	// Death FX.
+
+	// Weaker walls go from 3 to 4 when hit. Reset them here.
+	array<array<int>>& level = levels[current_level];
+	for (int y = 0; y < level.size(); ++y) {
+		for (int x = 0; x < level[y].size(); ++x) {
+			if (level[y][x] == 4) {
+				level[y][x] = 3;
+			}
+		}
+	}
+}
+
+void die()
+{
+	static audio_t* die_sound = audio_load_wav("die.wav");
+	sound_params_t params;
+	params.volume = 3.0f;
+	sound_play(app, die_sound, params);
+	clear();
+}
+
 void do_gameplay(coroutine_t* co)
 {
 	rnd_t rnd = rnd_seed((uint64_t)time(0));
 	audio_t* eat = audio_load_wav("eat.wav");
+	audio_t* explode = audio_load_wav("explode.wav");
+	audio_t* wall = audio_load_wav("wall.wav");
 
 	snake_x = s_snake_spawn_x();
 	snake_y = s_snake_spawn_y();
+	music_play(app, song);
+	music_set_volume(app, 0.10f);
 
 	bool done = false;
 	while (!done) {
@@ -332,10 +393,17 @@ void do_gameplay(coroutine_t* co)
 				apple_y = rnd_next_range(rnd, 0, 11);
 
 				// Try again if spawned on walls or the player.
+				bool on_snake = apple_x == snake_x && apple_y == snake_y;
+				for (int i = 0; i < segments_x.size(); ++i) {
+					if (segments_x[i] == apple_x && segments_y[i] == apple_y) {
+						on_snake = true;
+						break;
+					}
+				}
+				bool on_bomb = has_bomb && apple_x == bomb_x && apple_y == bomb_y;
+				bool on_hole = has_hole && apple_x == hole_x && apple_y == hole_y;
 				int tile = level[apple_y][apple_x];
-				bool on_snake = apple_x == snake_x && apple_y != snake_y;
-				bool on_bomb = has_bomb && snake_x == bomb_x && snake_y == bomb_y;
-				if (tile != 2 && tile != 3 && !on_snake && !on_bomb) {
+				if (tile != 2 && tile != 3 && !on_snake && !on_bomb && !on_hole) {
 					break;
 				}
 			}
@@ -361,6 +429,9 @@ void do_gameplay(coroutine_t* co)
 
 		// Die conditions.
 		bool hit_self = false;
+		bool hit_wall = false;
+		bool ran_out_of_segments = false;
+		bool hit_bad_bomb = false;
 		for (int i = 0; i < segments_x.size(); ++i) {
 			if (snake_x == segments_x[i] && snake_y == segments_y[i]) {
 				hit_self = true;
@@ -368,38 +439,27 @@ void do_gameplay(coroutine_t* co)
 			}
 		}
 		array<array<int>>& level = levels[current_level];
-		bool hit_wall = level[snake_y][snake_x] == 2;
-		bool ran_out_of_segments = false;
+		hit_wall = level[snake_y][snake_x] == 2;
 		if (level[snake_y][snake_x] == 3) {
 			// Breakable walls.
 			level[snake_y][snake_x] = 4;
 			if (segments_x.count()) {
 				segments_x.pop();
 				segments_y.pop();
+				sound_params_t params;
+				params.volume = 2.0f;
+				sound_play(app, wall, params);
 			} else {
 				ran_out_of_segments = true;
 			}
 		}
-		if (hit_self || hit_wall || ran_out_of_segments) {
-			segments_x.clear();
-			segments_y.clear();
-			has_apple = false;
-			has_bomb = false;
-			snake_x = s_snake_spawn_x();
-			snake_y = s_snake_spawn_y();
-
-			// Weaker walls go from 3 to 4 when hit. Reset them here.
-			for (int y = 0; y < level.size(); ++y) {
-				for (int x = 0; x < level[y].size(); ++x) {
-					if (level[y][x] == 4) {
-						level[y][x] = 3;
-					}
-				}
-			}
+		hit_bad_bomb = has_bomb && segments_x.size() < 5 && bomb_x == snake_x && bomb_y == snake_y;
+		if (hit_bad_bomb || hit_self || hit_wall || ran_out_of_segments) {
+			die();
 		}
 
 		// Spawn bomb.
-		if (segments_x.size() >= 5 && has_bomb == false) {
+		if (!has_hole && segments_x.size() >= 5 && has_bomb == false) {
 			has_bomb = true;
 			while (1) {
 				bomb_x = rnd_next_range(rnd, 0, 15);
@@ -409,15 +469,56 @@ void do_gameplay(coroutine_t* co)
 				int tile = level[bomb_y][bomb_x];
 				bool on_snake = bomb_x == snake_x && bomb_y != snake_y;
 				bool on_apple = has_apple && apple_x == bomb_x && apple_y != bomb_y;
+				for (int i = 0; i < segments_x.size(); ++i) {
+					if (segments_x[i] == bomb_x && segments_y[i] == bomb_y) {
+						on_snake = true;
+						break;
+					}
+				}
 				if (tile != 2 && tile != 3 && !on_snake && !on_apple) {
 					break;
 				}
 			}
 		}
 
+		// Run into bomb.
+		if (has_bomb && snake_x == bomb_x && snake_y == bomb_y) {
+			clear();
+			sound_play(app, explode);
+		}
+
+		// Explode bomb.
+		if (has_bomb && segments_x.size() >= 10) {
+			//@TODO
+			// Explosion FX.
+			has_bomb = false;
+			has_hole = true;
+			hole_x = bomb_x;
+			hole_y = bomb_y;
+			sound_params_t params;
+			params.volume = 2.0f;
+			sound_play(app, explode, params);
+		}
+
+		// Enter hole.
+		bool hit_hole = has_hole && hole_x == snake_x && hole_y == snake_y;
+		if (hit_hole) {
+			clear();
+			current_level++;
+			snake_x = s_snake_spawn_x();
+			snake_y = s_snake_spawn_y();
+			if (current_level == levels.size()) {
+				// @TODO
+				// Beat the game, play credits.
+				// Credits then goes back to title screen.
+			}
+		}
+
 		// Eat apple.
 		if (snake_x == apple_x && snake_y == apple_y) {
-			sound_play(app, eat);
+			sound_params_t params;
+			params.volume = 3.0f;
+			sound_play(app, eat, params);
 			has_apple = false;
 
 			// Grow snake.
@@ -463,6 +564,12 @@ void draw_game(float dt)
 		bomb.draw(b);
 	}
 
+	if (has_hole) {
+		hole.transform.p = grid2world(hole_x, hole_y);
+		hole.update(dt);
+		hole.draw(b);
+	}
+
 	snake_head.transform.p = grid2world(snake_x, snake_y);
 	snake_head.draw(b);
 
@@ -501,11 +608,13 @@ int main(int argc, const char** argv)
 	mount_content_folder();
 	b = sprite_get_batch(app);
 
+	song = audio_load_ogg("melody2-Very-Sorry.ogg");
 	snake_head = sprite_make(app, "snake_head.ase");
 	snake_segment = sprite_make(app, "snake_segment.ase");
 	apple = sprite_make(app, "apple.ase");
 	wall = sprite_make(app, "wall.ase");
 	weak_wall = sprite_make(app, "weak_wall.ase");
+	hole = sprite_make(app, "hole.ase");
 	bomb = sprite_make(app, "bomb.ase");
 	bomb.local_offset = v2(1, 1);
 
@@ -524,8 +633,19 @@ int main(int argc, const char** argv)
 		float dt = calc_dt();
 		app_update(app, dt);
 
+		// Handle input.
 		for (int i = 0; i < wasd.size(); ++i) {
 			if (key_was_pressed(app, wasd[i]) || key_was_pressed(app, arrows[i])) {
+				// Cannot turn around 180 in a single move and run into yourself.
+				if (segments_x.size()) {
+					int snake_next_x = (int)(snake_x + dirs[i].x);
+					int snake_next_y = (int)(snake_y + dirs[i].y);
+					if (snake_next_x == segments_x[0] && snake_next_y == segments_y[0]) {
+						continue;
+					}
+				}
+
+				// Assign new direction for the snake to go.
 				dir = dirs[i];
 			}
 		}
