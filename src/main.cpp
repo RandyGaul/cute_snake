@@ -89,7 +89,7 @@ static sg_pipeline s_pip;
 static void s_lightray(float phase, float width_radians, float r, v2 p)
 {
 	v2 prev = from_angle(phase) * r;
-	int iters = 5;
+	int iters = 25;
 
 	for (int i = 1; i <= iters; ++i) {
 		float a = (i / (float)iters) * width_radians;
