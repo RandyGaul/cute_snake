@@ -7,6 +7,8 @@ set(CMAKE_CXX_STANDARD 14)
 # Make sure all binaries are placed into the same build folder.
 set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR})
 
+set(CUTE_FRAMEWORK_STATIC ON)
+
 # This will download and build Cute Framework just once the first time you build your game.
 # There are other ways to get cute, such as downloading and installing prebuilt binaries, or
 # by building Cute Framework yourself from source and installing the binaries on your machine.

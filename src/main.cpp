@@ -3,6 +3,8 @@ using namespace cute;
 
 #define CUTE_PATH_IMPLEMENTATION
 #include <cute/cute_path.h>
+#include <sokol/sokol_gfx_imgui.h>
+#include <imgui/imgui.h>
 
 #include <time.h> // time
 
@@ -128,9 +130,9 @@ void s_uniforms(matrix_t mvp, color_t color)
 	light_vs_params_t vs_params;
 	light_fs_params_t fs_params;
 	vs_params.u_mvp = mvp;
-	sg_apply_uniforms(SG_SHADERSTAGE_VS, 0, &vs_params, sizeof(vs_params));
+	sg_apply_uniforms(SG_SHADERSTAGE_VS, 0, SG_RANGE(vs_params));
 	fs_params.u_color = color;
-	sg_apply_uniforms(SG_SHADERSTAGE_FS, 0, &fs_params, sizeof(fs_params));
+	sg_apply_uniforms(SG_SHADERSTAGE_FS, 0, SG_RANGE(fs_params));
 }
 
 static void s_draw_white_shapes()
@@ -169,7 +171,7 @@ void title_screen(app_t* app)
 	blend.src_factor_alpha = SG_BLENDFACTOR_ONE_MINUS_DST_ALPHA;
 	blend.dst_factor_alpha = SG_BLENDFACTOR_ONE;
 	blend.op_alpha = SG_BLENDOP_ADD;
-	params.blend = blend;
+	params.colors[0].blend = blend;
 	params.shader = s_shd;
 	s_pip = sg_make_pipeline(params);
 
@@ -187,7 +189,7 @@ void title_screen(app_t* app)
 	quad.type = SG_BUFFERTYPE_VERTEXBUFFER;
 	quad.usage = SG_USAGE_IMMUTABLE;
 	quad.size = sizeof(v2) * 6;
-	quad.content = fullscreen_quad;
+	quad.data = SG_RANGE(fullscreen_quad);
 	s_quad = sg_make_buffer(quad);
 
 	float t = 0;
@@ -608,6 +610,9 @@ int main(int argc, const char** argv)
 	mount_content_folder();
 	b = sprite_get_batch(app);
 
+	app_init_imgui(app);
+	sg_imgui_t* sg_imgui = app_get_sokol_imgui(app);
+
 	song = audio_load_ogg("melody2-Very-Sorry.ogg");
 	snake_head = sprite_make(app, "snake_head.ase");
 	snake_segment = sprite_make(app, "snake_segment.ase");
@@ -652,6 +657,19 @@ int main(int argc, const char** argv)
 
 		coroutine_resume(gameplay_co, dt);
 		draw_game(dt);
+
+		if (ImGui::BeginMainMenuBar()) {
+			if (ImGui::BeginMenu("sokol-gfx")) {
+				ImGui::MenuItem("Buffers", 0, &sg_imgui->buffers.open);
+				ImGui::MenuItem("Images", 0, &sg_imgui->images.open);
+				ImGui::MenuItem("Shaders", 0, &sg_imgui->shaders.open);
+				ImGui::MenuItem("Pipelines", 0, &sg_imgui->pipelines.open);
+				ImGui::MenuItem("Passes", 0, &sg_imgui->passes.open);
+				ImGui::MenuItem("Calls", 0, &sg_imgui->capture.open);
+				ImGui::EndMenu();
+			}
+			ImGui::EndMainMenuBar();
+		}
 
 		app_present(app);
 	}
