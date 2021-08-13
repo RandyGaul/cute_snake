@@ -1,3 +1,5 @@
+#include <time.h> // time
+
 #include <cute.h>
 using namespace cute;
 
@@ -6,10 +8,9 @@ using namespace cute;
 #include <sokol/sokol_gfx_imgui.h>
 #include <imgui/imgui.h>
 
-#include <time.h> // time
-
 app_t* app;
 batch_t* b;
+coroutine_t* loop_co;
 
 void mount_content_folder()
 {
@@ -23,7 +24,7 @@ void mount_content_folder()
 	file_system_mount(buf, "");
 }
 
-void do_cute_preamble(coroutine_t* co)
+void cute_preamble(coroutine_t* co)
 {
 	sprite_t cute = sprite_make(app, "cute.ase");
 	float t = 0;
@@ -64,20 +65,10 @@ void do_cute_preamble(coroutine_t* co)
 		batch_pop_tint(b);
 		app_present(app);
 	}
-}
 
-void cute_preamble(app_t* app)
-{
-	coroutine_t* preamble = coroutine_make(do_cute_preamble);
-	while (app_is_running(app) && coroutine_state(preamble) != COROUTINE_STATE_DEAD) {
-		float dt = calc_dt();
-		coroutine_resume(preamble, dt);
-		if (key_was_pressed(app, KEY_ANY)) {
-			clear_all_key_state(app);
-			break;
-		}
+	if (key_was_pressed(app, KEY_ANY)) {
+		clear_all_key_state(app);
 	}
-	coroutine_destroy(preamble);
 }
 
 #include <shaders/light_shader.h>
@@ -147,13 +138,13 @@ static void s_draw_white_shapes()
 	s_verts.clear();
 }
 
-void title_screen(app_t* app)
+void title_screen(coroutine_t* co)
 {
 	sprite_t title = sprite_make(app, "title.ase");
 	sprite_t cute_snake = sprite_make(app, "cute_snake.ase");
 	audio_t* go = audio_load_wav("go.wav");
 	s_shd = sg_make_shader(light_shd_shader_desc());
-	
+
 	sg_pipeline_desc params = { 0 };
 	params.layout.buffers[0].stride = sizeof(v2);
 	params.layout.buffers[0].step_func = SG_VERTEXSTEP_PER_VERTEX;
@@ -196,7 +187,7 @@ void title_screen(app_t* app)
 	float skip_t = 0;
 	bool done = false;
 	while (app_is_running(app) && !done) {
-		float dt = calc_dt();
+		float dt = coroutine_yield(co);
 		app_update(app, dt);
 
 		title.draw(b);
@@ -239,6 +230,8 @@ void title_screen(app_t* app)
 	}
 }
 
+audio_t* select;
+sg_imgui_t* sg_imgui;
 audio_t* song;
 sprite_t wall;
 sprite_t weak_wall;
@@ -601,41 +594,19 @@ void draw_game(float dt)
 	batch_flush(b);
 }
 
-int main(int argc, const char** argv)
+void do_loop(coroutine_t* co)
 {
-	uint32_t app_options = CUTE_APP_OPTIONS_DEFAULT_GFX_CONTEXT | CUTE_APP_OPTIONS_WINDOW_POS_CENTERED;
-	app = app_make("Cute Snake", 0, 0, 640, 480, app_options, argv[0]);
-	app_init_upscaling(app, UPSCALE_PIXEL_PERFECT_AT_LEAST_2X, 80, 60);
-	app_init_audio(app);
-	mount_content_folder();
-	b = sprite_get_batch(app);
-
-	app_init_imgui(app);
-	sg_imgui_t* sg_imgui = app_get_sokol_imgui(app);
-
-	song = audio_load_ogg("melody2-Very-Sorry.ogg");
-	snake_head = sprite_make(app, "snake_head.ase");
-	snake_segment = sprite_make(app, "snake_segment.ase");
-	apple = sprite_make(app, "apple.ase");
-	wall = sprite_make(app, "wall.ase");
-	weak_wall = sprite_make(app, "weak_wall.ase");
-	hole = sprite_make(app, "hole.ase");
-	bomb = sprite_make(app, "bomb.ase");
-	bomb.local_offset = v2(1, 1);
-
-	cute_preamble(app);
-	title_screen(app);
-
-	audio_t* select = audio_load_wav("select.wav");
-
-	coroutine_t* gameplay_co = coroutine_make(do_gameplay);
+	cute_preamble(co);
+	title_screen(co);
 
 	array<key_button_t> wasd = { KEY_W, KEY_A, KEY_S, KEY_D };
 	array<key_button_t> arrows = { KEY_UP, KEY_LEFT, KEY_DOWN, KEY_RIGHT };
 	array<v2> dirs = { v2(0, -1), v2(-1, 0), v2(0, 1), v2(1, 0) };
 
+	coroutine_t* gameplay_co = coroutine_make(do_gameplay);
+
 	while (app_is_running(app)) {
-		float dt = calc_dt();
+		float dt = coroutine_yield(co);
 		app_update(app, dt);
 
 		// Handle input.
@@ -675,6 +646,48 @@ int main(int argc, const char** argv)
 	}
 
 	coroutine_destroy(gameplay_co);
+}
+
+void main_loop()
+{
+	float dt = calc_dt();
+	coroutine_resume(loop_co, dt);
+}
+
+int main(int argc, const char** argv)
+{
+	uint32_t app_options = CUTE_APP_OPTIONS_DEFAULT_GFX_CONTEXT | CUTE_APP_OPTIONS_WINDOW_POS_CENTERED;
+	app = app_make("Cute Snake", 0, 0, 640, 480, app_options, argv[0]);
+	app_init_upscaling(app, UPSCALE_PIXEL_PERFECT_AT_LEAST_2X, 80, 60);
+	app_init_audio(app);
+	mount_content_folder();
+	b = sprite_get_batch(app);
+
+	app_init_imgui(app);
+	sg_imgui = app_get_sokol_imgui(app);
+
+	song = audio_load_ogg("melody2-Very-Sorry.ogg");
+	select = audio_load_wav("select.wav");
+	snake_head = sprite_make(app, "snake_head.ase");
+	snake_segment = sprite_make(app, "snake_segment.ase");
+	apple = sprite_make(app, "apple.ase");
+	wall = sprite_make(app, "wall.ase");
+	weak_wall = sprite_make(app, "weak_wall.ase");
+	hole = sprite_make(app, "hole.ase");
+	bomb = sprite_make(app, "bomb.ase");
+	bomb.local_offset = v2(1, 1);
+
+	loop_co = coroutine_make(do_loop);
+
+#ifdef CUTE_EMSCRIPTEN
+	emscripten_set_main_loop(main_loop, 0, true);
+#else
+	while (app_is_running(app)) {
+		main_loop();
+	}
+#endif
+
+	coroutine_destroy(loop_co);
 	app_destroy(app);
 
 	return 0;

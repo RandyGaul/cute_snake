@@ -4,6 +4,11 @@ project(cute_snake)
 # Must have at least C++14.
 set(CMAKE_CXX_STANDARD 14)
 
+
+if(CMAKE_SYSTEM_NAME MATCHES "Emscripten")
+	set(EMSCRIPTEN TRUE)
+endif()
+
 # Make sure all binaries are placed into the same build folder.
 set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR})
 
@@ -30,10 +35,14 @@ add_executable(
 
 target_include_directories(snake PUBLIC $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/src>)
 
+if(EMSCRIPTEN)
+	set(CMAKE_EXECUTABLE_SUFFIX ".html")
+	target_compile_options(snake PUBLIC -O1 -fno-rtti -fno-exceptions)
+	target_link_options(snake PRIVATE -o snake.html --preload-file ${CMAKE_SOURCE_DIR}/content@/content --emrun -s ASYNCIFY=1 -O1)
+endif()
+
 # Make the game link against Cute Framework.
 target_link_libraries(snake cute)
-
-# TODO - Emscripten.
 
 # For convenience set MSVC debugger's working directory in the build folder.
 # Also ask MSVC to make snake the startup project.
