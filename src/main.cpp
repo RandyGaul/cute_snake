@@ -75,7 +75,6 @@ void cute_preamble(coroutine_t* co)
 }
 
 #include <shaders/light_shader.h>
-#include <shaders/sprite_shader.h>
 
 static array<v2> s_verts;
 static sg_buffer s_quad;
@@ -681,7 +680,9 @@ int main(int argc, const char** argv)
 	bomb = sprite_make(app, "bomb.ase");
 	bomb.local_offset = v2(1, 1);
 
-	loop_co = coroutine_make(do_loop);
+	// Has to be larger than default size so that d3d11 funcs don't crash on stack overflow.
+	int stack_size = CUTE_MB;
+	loop_co = coroutine_make(do_loop, stack_size);
 
 #ifdef CUTE_EMSCRIPTEN
 	emscripten_set_main_loop(main_loop, 0, true);
