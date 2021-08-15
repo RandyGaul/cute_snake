@@ -1,3 +1,6 @@
+#define _CRT_SECURE_NO_WARNINGS
+#define _CRT_SECURE_NO_DEPRECATE
+
 #include <time.h> // time
 
 #include <cute.h>
@@ -72,6 +75,7 @@ void cute_preamble(coroutine_t* co)
 }
 
 #include <shaders/light_shader.h>
+#include <shaders/sprite_shader.h>
 
 static array<v2> s_verts;
 static sg_buffer s_quad;
@@ -143,7 +147,7 @@ void title_screen(coroutine_t* co)
 	sprite_t title = sprite_make(app, "title.ase");
 	sprite_t cute_snake = sprite_make(app, "cute_snake.ase");
 	audio_t* go = audio_load_wav("go.wav");
-	s_shd = sg_make_shader(light_shd_shader_desc());
+	s_shd = sg_make_shader(light_shd_shader_desc(sg_query_backend()));
 
 	sg_pipeline_desc params = { 0 };
 	params.layout.buffers[0].stride = sizeof(v2);
