@@ -11,7 +11,6 @@ using namespace cute;
 #include <sokol/sokol_gfx_imgui.h>
 #include <imgui/imgui.h>
 
-app_t* app;
 batch_t* b;
 coroutine_t* loop_co;
 
@@ -29,48 +28,48 @@ void mount_content_folder()
 
 void cute_preamble(coroutine_t* co)
 {
-	sprite_t cute = sprite_make(app, "cute.ase");
+	sprite_t cute = sprite_make("cute.ase");
 	float t = 0;
 	const float elapse = 2;
 	const float pause = 1;
 
-	while (app_is_running(app) && t < elapse) {
+	while (app_is_running() && t < elapse) {
 		float dt = coroutine_yield(co);
 		t += dt;
-		app_update(app, dt);
+		app_update(dt);
 		float tint = smoothstep(remap(t, 0, elapse) * 0.5f);
 		batch_push_tint(b, make_color(tint, tint, tint));
 		cute.draw(b);
 		batch_flush(b);
 		batch_pop_tint(b);
-		app_present(app);
+		app_present();
 	}
 
 	t = 0;
-	while (app_is_running(app) && t < pause) {
+	while (app_is_running() && t < pause) {
 		float dt = coroutine_yield(co);
 		t += dt;
-		app_update(app, dt);
+		app_update(dt);
 		cute.draw(b);
 		batch_flush(b);
-		app_present(app);
+		app_present();
 	}
 
 	t = 0;
-	while (app_is_running(app) && t < elapse) {
+	while (app_is_running() && t < elapse) {
 		float dt = coroutine_yield(co);
 		t += dt;
-		app_update(app, dt);
+		app_update(dt);
 		float tint = smoothstep((1.0f - remap(t, 0, elapse)) * 0.5f);
 		batch_push_tint(b, make_color(tint, tint, tint));
 		cute.draw(b);
 		batch_flush(b);
 		batch_pop_tint(b);
-		app_present(app);
+		app_present();
 	}
 
-	if (key_was_pressed(app, KEY_ANY)) {
-		clear_all_key_state(app);
+	if (key_was_pressed(KEY_ANY)) {
+		clear_all_key_state();
 	}
 }
 
@@ -143,8 +142,8 @@ static void s_draw_white_shapes()
 
 void title_screen(coroutine_t* co)
 {
-	sprite_t title = sprite_make(app, "title.ase");
-	sprite_t cute_snake = sprite_make(app, "cute_snake.ase");
+	sprite_t title = sprite_make("title.ase");
+	sprite_t cute_snake = sprite_make("cute_snake.ase");
 	audio_t* go = audio_load_wav("go.wav");
 	s_shd = sg_make_shader(light_shd_shader_desc(sg_query_backend()));
 
@@ -189,9 +188,9 @@ void title_screen(coroutine_t* co)
 	float t = 0;
 	float skip_t = 0;
 	bool done = false;
-	while (app_is_running(app) && !done) {
+	while (app_is_running() && !done) {
 		float dt = coroutine_yield(co);
-		app_update(app, dt);
+		app_update(dt);
 
 		title.draw(b);
 		batch_flush(b);
@@ -212,11 +211,11 @@ void title_screen(coroutine_t* co)
 		batch_flush(b);
 
 		static bool skip = false;
-		if (!skip && key_was_pressed(app, KEY_ANY)) {
+		if (!skip && key_was_pressed(KEY_ANY)) {
 			skip = true;
 			sound_params_t params;
 			params.volume = 1.25f;
-			sound_play(app, go, params);
+			sound_play(go, params);
 		}
 
 		if (skip) {
@@ -229,7 +228,7 @@ void title_screen(coroutine_t* co)
 
 		s_draw_white_shapes();
 
-		app_present(app);
+		app_present();
 	}
 }
 
@@ -362,7 +361,7 @@ void die()
 	static audio_t* die_sound = audio_load_wav("die.wav");
 	sound_params_t params;
 	params.volume = 3.0f;
-	sound_play(app, die_sound, params);
+	sound_play(die_sound, params);
 	clear();
 }
 
@@ -375,8 +374,8 @@ void do_gameplay(coroutine_t* co)
 
 	snake_x = s_snake_spawn_x();
 	snake_y = s_snake_spawn_y();
-	music_play(app, song);
-	music_set_volume(app, 0.10f);
+	music_play(song);
+	music_set_volume(0.10f);
 
 	bool done = false;
 	while (!done) {
@@ -446,7 +445,7 @@ void do_gameplay(coroutine_t* co)
 				segments_y.pop();
 				sound_params_t params;
 				params.volume = 2.0f;
-				sound_play(app, wall, params);
+				sound_play(wall, params);
 			} else {
 				ran_out_of_segments = true;
 			}
@@ -482,7 +481,7 @@ void do_gameplay(coroutine_t* co)
 		// Run into bomb.
 		if (has_bomb && snake_x == bomb_x && snake_y == bomb_y) {
 			clear();
-			sound_play(app, explode);
+			sound_play(explode);
 		}
 
 		// Explode bomb.
@@ -495,7 +494,7 @@ void do_gameplay(coroutine_t* co)
 			hole_y = bomb_y;
 			sound_params_t params;
 			params.volume = 2.0f;
-			sound_play(app, explode, params);
+			sound_play(explode, params);
 		}
 
 		// Enter hole.
@@ -516,7 +515,7 @@ void do_gameplay(coroutine_t* co)
 		if (snake_x == apple_x && snake_y == apple_y) {
 			sound_params_t params;
 			params.volume = 3.0f;
-			sound_play(app, eat, params);
+			sound_play(eat, params);
 			has_apple = false;
 
 			// Grow snake.
@@ -553,7 +552,7 @@ v2 grid2world(int x, int y)
 
 void draw_game(float dt)
 {
-	static sprite_t bg = sprite_make(app, "bg.ase");
+	static sprite_t bg = sprite_make("bg.ase");
 	bg.draw(b);
 
 	if (has_bomb) {
@@ -608,13 +607,13 @@ void do_loop(coroutine_t* co)
 
 	coroutine_t* gameplay_co = coroutine_make(do_gameplay);
 
-	while (app_is_running(app)) {
+	while (app_is_running()) {
 		float dt = coroutine_yield(co);
-		app_update(app, dt);
+		app_update(dt);
 
 		// Handle input.
 		for (int i = 0; i < wasd.size(); ++i) {
-			if (key_was_pressed(app, wasd[i]) || key_was_pressed(app, arrows[i])) {
+			if (key_was_pressed(wasd[i]) || key_was_pressed(arrows[i])) {
 				// Cannot turn around 180 in a single move and run into yourself.
 				if (segments_x.size()) {
 					int snake_next_x = (int)(snake_x + dirs[i].x);
@@ -645,7 +644,7 @@ void do_loop(coroutine_t* co)
 			ImGui::EndMainMenuBar();
 		}
 
-		app_present(app);
+		app_present();
 	}
 
 	coroutine_destroy(gameplay_co);
@@ -660,24 +659,24 @@ void main_loop()
 int main(int argc, const char** argv)
 {
 	uint32_t app_options = CUTE_APP_OPTIONS_DEFAULT_GFX_CONTEXT | CUTE_APP_OPTIONS_WINDOW_POS_CENTERED;
-	app = app_make("Cute Snake", 0, 0, 640, 480, app_options, argv[0]);
-	app_init_upscaling(app, UPSCALE_PIXEL_PERFECT_AT_LEAST_2X, 80, 60);
-	app_init_audio(app);
+	app_make("Cute Snake", 0, 0, 640, 480, app_options, argv[0]);
+	b = sprite_get_batch();
+	batch_set_projection(b, matrix_ortho_2d(80, 60, 0, 0));
+	app_init_audio();
 	mount_content_folder();
-	b = sprite_get_batch(app);
 
-	app_init_imgui(app);
-	sg_imgui = app_get_sokol_imgui(app);
+	app_init_imgui();
+	sg_imgui = app_get_sokol_imgui();
 
 	song = audio_load_ogg("melody2-Very-Sorry.ogg");
 	select = audio_load_wav("select.wav");
-	snake_head = sprite_make(app, "snake_head.ase");
-	snake_segment = sprite_make(app, "snake_segment.ase");
-	apple = sprite_make(app, "apple.ase");
-	wall = sprite_make(app, "wall.ase");
-	weak_wall = sprite_make(app, "weak_wall.ase");
-	hole = sprite_make(app, "hole.ase");
-	bomb = sprite_make(app, "bomb.ase");
+	snake_head = sprite_make("snake_head.ase");
+	snake_segment = sprite_make("snake_segment.ase");
+	apple = sprite_make("apple.ase");
+	wall = sprite_make("wall.ase");
+	weak_wall = sprite_make("weak_wall.ase");
+	hole = sprite_make("hole.ase");
+	bomb = sprite_make("bomb.ase");
 	bomb.local_offset = v2(1, 1);
 
 	// Has to be larger than default size so that d3d11 funcs don't crash on stack overflow.
@@ -687,13 +686,13 @@ int main(int argc, const char** argv)
 #ifdef CUTE_EMSCRIPTEN
 	emscripten_set_main_loop(main_loop, 0, true);
 #else
-	while (app_is_running(app)) {
+	while (app_is_running()) {
 		main_loop();
 	}
 #endif
 
 	coroutine_destroy(loop_co);
-	app_destroy(app);
+	app_destroy();
 
 	return 0;
 }
