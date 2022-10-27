@@ -1,8 +1,7 @@
 #define _CRT_SECURE_NO_WARNINGS
 #define _CRT_SECURE_NO_DEPRECATE
 
-#include <time.h> // time
-
+#include <time.h>
 #include <cute.h>
 using namespace cute;
 
@@ -68,7 +67,7 @@ void cute_preamble(coroutine_t* co)
 		app_present();
 	}
 
-	if (key_was_pressed(KEY_ANY)) {
+	if (key_was_pressed(CF_KEY_ANY)) {
 		clear_all_key_state();
 	}
 }
@@ -77,7 +76,7 @@ void cute_preamble(coroutine_t* co)
 
 static array<v2> s_verts;
 static sg_buffer s_quad;
-static triple_buffer_t s_buf;
+static buffer_t s_buf;
 static sg_shader s_shd;
 static sg_pipeline s_pip;
 
@@ -131,12 +130,11 @@ void s_uniforms(matrix_t mvp, color_t color)
 static void s_draw_white_shapes()
 {
 	sg_apply_pipeline(s_pip);
-	error_t err = triple_buffer_append(&s_buf, s_verts.count(), s_verts.data());
-	CUTE_ASSERT(!err.is_error());
+	error_t err = buffer_append(&s_buf, s_verts.count(), s_verts.data());
+	CUTE_ASSERT(!is_error(err));
 	sg_apply_bindings(s_buf.bind());
 	s_uniforms(matrix_ortho_2d(80, 60, 0, 0), make_color(1.0f, 1.0f, 1.0f));
 	sg_draw(0, s_verts.count(), 1);
-	s_buf.advance();
 	s_verts.clear();
 }
 
@@ -168,7 +166,7 @@ void title_screen(coroutine_t* co)
 	params.shader = s_shd;
 	s_pip = sg_make_pipeline(params);
 
-	s_buf = triple_buffer_make(sizeof(v2) * 1024, sizeof(v2));
+	s_buf = buffer_make(sizeof(v2) * 1024, sizeof(v2));
 
 	v2 fullscreen_quad[6] = {
 		v2(-1, -1),
@@ -211,7 +209,7 @@ void title_screen(coroutine_t* co)
 		batch_flush(b);
 
 		static bool skip = false;
-		if (!skip && key_was_pressed(KEY_ANY)) {
+		if (!skip && key_was_pressed(CF_KEY_ANY)) {
 			skip = true;
 			sound_params_t params;
 			params.volume = 1.25f;
@@ -486,7 +484,7 @@ void do_gameplay(coroutine_t* co)
 
 		// Explode bomb.
 		if (has_bomb && segments_x.size() >= 10) {
-			//@TODO
+			// @TODO
 			// Explosion FX.
 			has_bomb = false;
 			has_hole = true;
@@ -601,8 +599,8 @@ void do_loop(coroutine_t* co)
 	cute_preamble(co);
 	title_screen(co);
 
-	array<key_button_t> wasd = { KEY_W, KEY_A, KEY_S, KEY_D };
-	array<key_button_t> arrows = { KEY_UP, KEY_LEFT, KEY_DOWN, KEY_RIGHT };
+	array<key_button_t> wasd = { CF_KEY_W, CF_KEY_A, CF_KEY_S, CF_KEY_D };
+	array<key_button_t> arrows = { CF_KEY_UP, CF_KEY_LEFT, CF_KEY_DOWN, CF_KEY_RIGHT };
 	array<v2> dirs = { v2(0, -1), v2(-1, 0), v2(0, 1), v2(1, 0) };
 
 	coroutine_t* gameplay_co = coroutine_make(do_gameplay);
