@@ -1,7 +1,3 @@
-#define _CRT_SECURE_NO_WARNINGS
-#define _CRT_SECURE_NO_DEPRECATE
-
-#include <time.h>
 #include <cute.h>
 using namespace cute;
 
@@ -9,6 +5,7 @@ using namespace cute;
 #include <cute/cute_path.h>
 #include <sokol/sokol_gfx_imgui.h>
 #include <imgui/imgui.h>
+#include <time.h>
 
 batch_t* b;
 coroutine_t* loop_co;
@@ -27,7 +24,7 @@ void mount_content_folder()
 
 void cute_preamble(coroutine_t* co)
 {
-	sprite_t cute = sprite_make("cute.ase");
+	sprite_t cute = make_sprite("cute.ase");
 	float t = 0;
 	const float elapse = 2;
 	const float pause = 1;
@@ -67,7 +64,7 @@ void cute_preamble(coroutine_t* co)
 		app_present();
 	}
 
-	if (key_was_pressed(CF_KEY_ANY)) {
+	if (key_was_pressed(KEY_ANY)) {
 		clear_all_key_state();
 	}
 }
@@ -104,7 +101,7 @@ static void s_lightray(float phase, float width_radians, float r, v2 p)
 
 static void s_circle(float r, v2 p)
 {
-	v2 prev = v2(r, 0);
+	v2 prev = V2(r, 0);
 	int iters = 20;
 
 	for (int i = 1; i <= iters; ++i) {
@@ -130,8 +127,8 @@ void s_uniforms(matrix_t mvp, color_t color)
 static void s_draw_white_shapes()
 {
 	sg_apply_pipeline(s_pip);
-	error_t err = buffer_append(&s_buf, s_verts.count(), s_verts.data());
-	CUTE_ASSERT(!is_error(err));
+	result_t result = buffer_append(&s_buf, s_verts.count(), s_verts.data());
+	CUTE_ASSERT(!is_error(result));
 	sg_apply_bindings(s_buf.bind());
 	s_uniforms(matrix_ortho_2d(80, 60, 0, 0), make_color(1.0f, 1.0f, 1.0f));
 	sg_draw(0, s_verts.count(), 1);
@@ -140,8 +137,8 @@ static void s_draw_white_shapes()
 
 void title_screen(coroutine_t* co)
 {
-	sprite_t title = sprite_make("title.ase");
-	sprite_t cute_snake = sprite_make("cute_snake.ase");
+	sprite_t title = make_sprite("title.ase");
+	sprite_t cute_snake = make_sprite("cute_snake.ase");
 	audio_t* go = audio_load_wav("go.wav");
 	s_shd = sg_make_shader(light_shd_shader_desc(sg_query_backend()));
 
@@ -169,12 +166,12 @@ void title_screen(coroutine_t* co)
 	s_buf = buffer_make(sizeof(v2) * 1024, sizeof(v2));
 
 	v2 fullscreen_quad[6] = {
-		v2(-1, -1),
-		v2( 1,  1),
-		v2(-1,  1),
-		v2( 1,  1),
-		v2(-1, -1),
-		v2( 1, -1),
+		V2(-1, -1),
+		V2( 1,  1),
+		V2(-1,  1),
+		V2( 1,  1),
+		V2(-1, -1),
+		V2( 1, -1),
 	};
 	sg_buffer_desc quad = { 0 };
 	quad.type = SG_BUFFERTYPE_VERTEXBUFFER;
@@ -196,7 +193,7 @@ void title_screen(coroutine_t* co)
 		t += dt * 1.25f;
 		float slice_size = (CUTE_PI / 16.0f) * 0.75f;
 		float r = 9;
-		v2 c = v2(26, 13);
+		v2 c = V2(26, 13);
 		s_lightray(t, slice_size * 2.5f, r, c);
 		s_lightray(t + 0.75f, slice_size * 3.0f, r, c);
 		s_lightray(t + 2.0f, slice_size * 2.5f, r, c);
@@ -209,7 +206,7 @@ void title_screen(coroutine_t* co)
 		batch_flush(b);
 
 		static bool skip = false;
-		if (!skip && key_was_pressed(CF_KEY_ANY)) {
+		if (!skip && key_was_pressed(KEY_ANY)) {
 			skip = true;
 			sound_params_t params;
 			params.volume = 1.25f;
@@ -240,7 +237,7 @@ sprite_t hole;
 sprite_t snake_head;
 sprite_t snake_segment;
 sprite_t apple;
-v2 dir = v2(-1, 0);
+v2 dir = V2(-1, 0);
 int snake_x;
 int snake_y;
 array<int> segments_x;
@@ -338,7 +335,7 @@ void clear()
 	has_hole = false;
 	snake_x = s_snake_spawn_x();
 	snake_y = s_snake_spawn_y();
-	dir = v2(1, 0);
+	dir = V2(1, 0);
 
 	//@TODO
 	// Death FX.
@@ -545,12 +542,12 @@ v2 grid2world(int x, int y)
 	int bh = 12 / 2;
 	float x_offset = tile_dim / 2.0f;
 	float y_offset = (float)(12 * tile_dim) - tile_dim / 2.0f;
-	return v2((float)(x-bw) * tile_dim + x_offset, -(float)(y+bh) * tile_dim + y_offset);
+	return V2((float)(x-bw) * tile_dim + x_offset, -(float)(y+bh) * tile_dim + y_offset);
 }
 
 void draw_game(float dt)
 {
-	static sprite_t bg = sprite_make("bg.ase");
+	static sprite_t bg = make_sprite("bg.ase");
 	bg.draw(b);
 
 	if (has_bomb) {
@@ -599,11 +596,11 @@ void do_loop(coroutine_t* co)
 	cute_preamble(co);
 	title_screen(co);
 
-	array<key_button_t> wasd = { CF_KEY_W, CF_KEY_A, CF_KEY_S, CF_KEY_D };
-	array<key_button_t> arrows = { CF_KEY_UP, CF_KEY_LEFT, CF_KEY_DOWN, CF_KEY_RIGHT };
-	array<v2> dirs = { v2(0, -1), v2(-1, 0), v2(0, 1), v2(1, 0) };
+	array<key_button_t> wasd = { KEY_W, KEY_A, KEY_S, KEY_D };
+	array<key_button_t> arrows = { KEY_UP, KEY_LEFT, KEY_DOWN, KEY_RIGHT };
+	array<v2> dirs = { V2(0, -1), V2(-1, 0), V2(0, 1), V2(1, 0) };
 
-	coroutine_t* gameplay_co = coroutine_make(do_gameplay);
+	coroutine_t* gameplay_co = make_coroutine(do_gameplay);
 
 	while (app_is_running()) {
 		float dt = coroutine_yield(co);
@@ -645,7 +642,7 @@ void do_loop(coroutine_t* co)
 		app_present();
 	}
 
-	coroutine_destroy(gameplay_co);
+	destroy_coroutine(gameplay_co);
 }
 
 void main_loop()
@@ -656,8 +653,9 @@ void main_loop()
 
 int main(int argc, const char** argv)
 {
-	uint32_t app_options = CUTE_APP_OPTIONS_DEFAULT_GFX_CONTEXT | CUTE_APP_OPTIONS_WINDOW_POS_CENTERED;
-	app_make("Cute Snake", 0, 0, 640, 480, app_options, argv[0]);
+	uint32_t app_options = APP_OPTIONS_DEFAULT_GFX_CONTEXT | APP_OPTIONS_WINDOW_POS_CENTERED;
+	result_t result = make_app("Cute Snake", 0, 0, 640, 480, app_options, argv[0]);
+	if (is_error(result)) return -1;
 	b = sprite_get_batch();
 	batch_set_projection(b, matrix_ortho_2d(80, 60, 0, 0));
 	app_init_audio();
@@ -668,18 +666,18 @@ int main(int argc, const char** argv)
 
 	song = audio_load_ogg("melody2-Very-Sorry.ogg");
 	select = audio_load_wav("select.wav");
-	snake_head = sprite_make("snake_head.ase");
-	snake_segment = sprite_make("snake_segment.ase");
-	apple = sprite_make("apple.ase");
-	wall = sprite_make("wall.ase");
-	weak_wall = sprite_make("weak_wall.ase");
-	hole = sprite_make("hole.ase");
-	bomb = sprite_make("bomb.ase");
-	bomb.local_offset = v2(1, 1);
+	snake_head = make_sprite("snake_head.ase");
+	snake_segment = make_sprite("snake_segment.ase");
+	apple = make_sprite("apple.ase");
+	wall = make_sprite("wall.ase");
+	weak_wall = make_sprite("weak_wall.ase");
+	hole = make_sprite("hole.ase");
+	bomb = make_sprite("bomb.ase");
+	bomb.local_offset = V2(1, 1);
 
 	// Has to be larger than default size so that d3d11 funcs don't crash on stack overflow.
 	int stack_size = CUTE_MB;
-	loop_co = coroutine_make(do_loop, stack_size);
+	loop_co = make_coroutine(do_loop, stack_size);
 
 #ifdef CUTE_EMSCRIPTEN
 	emscripten_set_main_loop(main_loop, 0, true);
@@ -689,8 +687,8 @@ int main(int argc, const char** argv)
 	}
 #endif
 
-	coroutine_destroy(loop_co);
-	app_destroy();
+	make_coroutine(do_loop);
+	destroy_app();
 
 	return 0;
 }
