@@ -1,8 +1,8 @@
 cmake_minimum_required(VERSION 3.0)
 project(cute_snake)
 
-# Must have at least C++14.
-set(CMAKE_CXX_STANDARD 14)
+# Must have at least C++17.
+set(CMAKE_CXX_STANDARD 17)
 
 if(CMAKE_SYSTEM_NAME MATCHES "Emscripten")
 	set(EMSCRIPTEN TRUE)

@@ -1,30 +1,34 @@
 #include <cute.h>
 using namespace cute;
 
-#define CUTE_PATH_IMPLEMENTATION
-#include <cute/cute_path.h>
 #include <sokol/sokol_gfx_imgui.h>
 #include <imgui/imgui.h>
 #include <time.h>
 
-batch_t* b;
-coroutine_t* loop_co;
-
 void mount_content_folder()
 {
-	char buf[1024];
-	const char* base = file_system_get_base_dir();
-	path_pop(base, buf, NULL);
+	char* path = spnorm(fs_get_base_dir());
+	int n = 1;
 #ifdef _MSC_VER
-	path_pop(buf, buf, NULL); // Pop out of Release/Debug folder when using MSVC.
+	n = 2;
 #endif
-	strcat(buf, "/content");
-	file_system_mount(buf, "");
+	path = sppopn(path, n);
+	scat(path, "/content");
+	fs_mount(path, "");
+	sfree(path);
 }
 
-void cute_preamble(coroutine_t* co)
+CF_Matrix4x4 s_projection;
+Coroutine* loop_co;
+Array<v2> s_verts;
+CF_Mesh s_mesh;
+CF_Shader s_shd;
+CF_Material s_material;
+CF_Pass s_pass;
+
+void cute_preamble(Coroutine* co)
 {
-	sprite_t cute = make_sprite("cute.ase");
+	Sprite cute = make_sprite("cute.ase");
 	float t = 0;
 	const float elapse = 2;
 	const float pause = 1;
@@ -34,10 +38,12 @@ void cute_preamble(coroutine_t* co)
 		t += dt;
 		app_update(dt);
 		float tint = smoothstep(remap(t, 0, elapse) * 0.5f);
-		batch_push_tint(b, make_color(tint, tint, tint));
-		cute.draw(b);
-		batch_flush(b);
-		batch_pop_tint(b);
+		batch_push_tint(make_color(tint, tint, tint));
+		cute.draw();
+		batch_pop_tint();
+		cf_begin_pass(s_pass);
+		cf_batch_render(s_projection);
+		cf_end_pass();
 		app_present();
 	}
 
@@ -46,8 +52,10 @@ void cute_preamble(coroutine_t* co)
 		float dt = coroutine_yield(co);
 		t += dt;
 		app_update(dt);
-		cute.draw(b);
-		batch_flush(b);
+		cute.draw();
+		cf_begin_pass(s_pass);
+		cf_batch_render(s_projection);
+		cf_end_pass();
 		app_present();
 	}
 
@@ -57,10 +65,12 @@ void cute_preamble(coroutine_t* co)
 		t += dt;
 		app_update(dt);
 		float tint = smoothstep((1.0f - remap(t, 0, elapse)) * 0.5f);
-		batch_push_tint(b, make_color(tint, tint, tint));
-		cute.draw(b);
-		batch_flush(b);
-		batch_pop_tint(b);
+		batch_push_tint(make_color(tint, tint, tint));
+		cute.draw();
+		batch_pop_tint();
+		cf_begin_pass(s_pass);
+		cf_batch_render(s_projection);
+		cf_end_pass();
 		app_present();
 	}
 
@@ -70,12 +80,6 @@ void cute_preamble(coroutine_t* co)
 }
 
 #include <shaders/light_shader.h>
-
-static array<v2> s_verts;
-static sg_buffer s_quad;
-static buffer_t s_buf;
-static sg_shader s_shd;
-static sg_pipeline s_pip;
 
 static void s_lightray(float phase, float width_radians, float r, v2 p)
 {
@@ -114,71 +118,47 @@ static void s_circle(float r, v2 p)
 	}
 }
 
-void s_uniforms(matrix_t mvp, color_t color)
+void s_uniforms(Matrix4x4 mvp, color_t color)
 {
-	light_vs_params_t vs_params;
-	light_fs_params_t fs_params;
-	vs_params.u_mvp = mvp;
-	sg_apply_uniforms(SG_SHADERSTAGE_VS, 0, SG_RANGE(vs_params));
-	fs_params.u_color = color;
-	sg_apply_uniforms(SG_SHADERSTAGE_FS, 0, SG_RANGE(fs_params));
+	material_set_uniform_vs(s_material, "vs_params", "u_mvp", &mvp, UNIFORM_TYPE_MAT4, 0);
+	material_set_uniform_fs(s_material, "fs_params", "u_color", &color, UNIFORM_TYPE_FLOAT4, 0);
 }
 
 static void s_draw_white_shapes()
 {
-	sg_apply_pipeline(s_pip);
-	result_t result = buffer_append(&s_buf, s_verts.count(), s_verts.data());
-	CUTE_ASSERT(!is_error(result));
-	sg_apply_bindings(s_buf.bind());
+	mesh_append_vertex_data(s_mesh, s_verts.data(), s_verts.count());
+	apply_mesh(s_mesh);
+	apply_shader(s_shd, s_material);
 	s_uniforms(matrix_ortho_2d(80, 60, 0, 0), make_color(1.0f, 1.0f, 1.0f));
-	sg_draw(0, s_verts.count(), 1);
+	draw_elements();
 	s_verts.clear();
 }
 
-void title_screen(coroutine_t* co)
+void title_screen(Coroutine* co)
 {
-	sprite_t title = make_sprite("title.ase");
-	sprite_t cute_snake = make_sprite("cute_snake.ase");
-	audio_t* go = audio_load_wav("go.wav");
-	s_shd = sg_make_shader(light_shd_shader_desc(sg_query_backend()));
+	Sprite title = make_sprite("title.ase");
+	Sprite cute_snake = make_sprite("cute_snake.ase");
+	Audio* go = audio_load_wav("go.wav");
+	s_shd = CF_MAKE_SOKOL_SHADER(light_shd);
 
-	sg_pipeline_desc params = { 0 };
-	params.layout.buffers[0].stride = sizeof(v2);
-	params.layout.buffers[0].step_func = SG_VERTEXSTEP_PER_VERTEX;
-	params.layout.buffers[0].step_rate = 1;
-	params.layout.attrs[0].buffer_index = 0;
-	params.layout.attrs[0].offset = 0;
-	params.layout.attrs[0].format = SG_VERTEXFORMAT_FLOAT2;
-	params.primitive_type = SG_PRIMITIVETYPE_TRIANGLES;
+	s_mesh = make_mesh(USAGE_TYPE_STREAM, sizeof(v2) * 1024, 0, 0);
+	VertexAttribute attrs[1];
+	attrs[0].name = "in_pos";
+	attrs[0].format = VERTEX_FORMAT_FLOAT2;
+	attrs[0].offset = 0;
+	attrs[0].step_type = ATTRIBUTE_STEP_PER_VERTEX;
+	mesh_set_attributes(s_mesh, attrs, 1, sizeof(v2), 0);
 
-	sg_blend_state blend = { 0 };
-	blend.enabled = true;
-	blend.src_factor_rgb = SG_BLENDFACTOR_SRC_ALPHA;
-	blend.dst_factor_rgb = SG_BLENDFACTOR_ONE_MINUS_SRC_ALPHA;
-	blend.op_rgb = SG_BLENDOP_ADD;
-	blend.src_factor_alpha = SG_BLENDFACTOR_ONE_MINUS_DST_ALPHA;
-	blend.dst_factor_alpha = SG_BLENDFACTOR_ONE;
-	blend.op_alpha = SG_BLENDOP_ADD;
-	params.colors[0].blend = blend;
-	params.shader = s_shd;
-	s_pip = sg_make_pipeline(params);
-
-	s_buf = buffer_make(sizeof(v2) * 1024, sizeof(v2));
-
-	v2 fullscreen_quad[6] = {
-		V2(-1, -1),
-		V2( 1,  1),
-		V2(-1,  1),
-		V2( 1,  1),
-		V2(-1, -1),
-		V2( 1, -1),
-	};
-	sg_buffer_desc quad = { 0 };
-	quad.type = SG_BUFFERTYPE_VERTEXBUFFER;
-	quad.usage = SG_USAGE_IMMUTABLE;
-	quad.size = sizeof(v2) * 6;
-	quad.data = SG_RANGE(fullscreen_quad);
-	s_quad = sg_make_buffer(quad);
+	s_material = cf_make_material();
+	CF_RenderState state = cf_render_state_defaults();
+	state.blend.enabled = true;
+	state.blend.rgb_src_blend_factor = BLENDFACTOR_ONE;
+	state.blend.rgb_dst_blend_factor = BLENDFACTOR_ONE_MINUS_SRC_ALPHA;
+	state.blend.rgb_op = BLEND_OP_ADD;
+	state.blend.alpha_src_blend_factor = BLENDFACTOR_ONE;
+	state.blend.alpha_dst_blend_factor = BLENDFACTOR_ONE_MINUS_SRC_ALPHA;
+	state.blend.alpha_op = BLEND_OP_ADD;
+	cf_material_set_render_state(s_material, state);
 
 	float t = 0;
 	float skip_t = 0;
@@ -187,8 +167,9 @@ void title_screen(coroutine_t* co)
 		float dt = coroutine_yield(co);
 		app_update(dt);
 
-		title.draw(b);
-		batch_flush(b);
+		cf_begin_pass(s_pass);
+		title.draw();
+		batch_render(s_projection);
 
 		t += dt * 1.25f;
 		float slice_size = (CUTE_PI / 16.0f) * 0.75f;
@@ -202,13 +183,13 @@ void title_screen(coroutine_t* co)
 
 		s_draw_white_shapes();
 
-		cute_snake.draw(b);
-		batch_flush(b);
+		cute_snake.draw();
+		batch_render(s_projection);
 
 		static bool skip = false;
 		if (!skip && key_was_pressed(KEY_ANY)) {
 			skip = true;
-			sound_params_t params;
+			SoundParams params;
 			params.volume = 1.25f;
 			sound_play(go, params);
 		}
@@ -222,26 +203,27 @@ void title_screen(coroutine_t* co)
 		}
 
 		s_draw_white_shapes();
+		cf_end_pass();
 
 		app_present();
 	}
 }
 
-audio_t* select;
+Audio* select;
 sg_imgui_t* sg_imgui;
-audio_t* song;
-sprite_t wall;
-sprite_t weak_wall;
-sprite_t bomb;
-sprite_t hole;
-sprite_t snake_head;
-sprite_t snake_segment;
-sprite_t apple;
+Audio* song;
+Sprite wall;
+Sprite weak_wall;
+Sprite bomb;
+Sprite hole;
+Sprite snake_head;
+Sprite snake_segment;
+Sprite apple;
 v2 dir = V2(-1, 0);
 int snake_x;
 int snake_y;
-array<int> segments_x;
-array<int> segments_y;
+Array<int> segments_x;
+Array<int> segments_y;
 bool has_apple = false;
 bool has_bomb = false;
 bool has_hole = false;
@@ -253,7 +235,7 @@ int hole_x;
 int hole_y;
 
 int current_level = 0;
-array<array<array<int>>> levels = {
+Array<Array<Array<int>>> levels = {
 	{
 		{ 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, },
 		{ 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, },
@@ -300,7 +282,7 @@ array<array<array<int>>> levels = {
 
 int s_snake_spawn_x()
 {
-	array<array<int>>& level = levels[current_level];
+	Array<Array<int>>& level = levels[current_level];
 	for (int y = 0; y < level.size(); ++y) {
 		for (int x = 0; x < level[y].size(); ++x) {
 			if (level[y][x] == 1) {
@@ -314,7 +296,7 @@ int s_snake_spawn_x()
 
 int s_snake_spawn_y()
 {
-	array<array<int>>& level = levels[current_level];
+	Array<Array<int>>& level = levels[current_level];
 	for (int y = 0; y < level.size(); ++y) {
 		for (int x = 0; x < level[y].size(); ++x) {
 			if (level[y][x] == 1) {
@@ -341,7 +323,7 @@ void clear()
 	// Death FX.
 
 	// Weaker walls go from 3 to 4 when hit. Reset them here.
-	array<array<int>>& level = levels[current_level];
+	Array<Array<int>>& level = levels[current_level];
 	for (int y = 0; y < level.size(); ++y) {
 		for (int x = 0; x < level[y].size(); ++x) {
 			if (level[y][x] == 4) {
@@ -353,19 +335,19 @@ void clear()
 
 void die()
 {
-	static audio_t* die_sound = audio_load_wav("die.wav");
-	sound_params_t params;
+	static Audio* die_sound = audio_load_wav("die.wav");
+	SoundParams params;
 	params.volume = 3.0f;
 	sound_play(die_sound, params);
 	clear();
 }
 
-void do_gameplay(coroutine_t* co)
+void do_gameplay(Coroutine* co)
 {
-	rnd_t rnd = rnd_seed((uint64_t)time(0));
-	audio_t* eat = audio_load_wav("eat.wav");
-	audio_t* explode = audio_load_wav("explode.wav");
-	audio_t* wall = audio_load_wav("wall.wav");
+	Rnd rnd = rnd_seed((uint64_t)time(0));
+	Audio* eat = audio_load_wav("eat.wav");
+	Audio* explode = audio_load_wav("explode.wav");
+	Audio* wall = audio_load_wav("wall.wav");
 
 	snake_x = s_snake_spawn_x();
 	snake_y = s_snake_spawn_y();
@@ -379,7 +361,7 @@ void do_gameplay(coroutine_t* co)
 		// Spawn a random apple if one does not already exist.
 		if (!has_apple) {
 			has_apple = true;
-			array<array<int>>& level = levels[current_level];
+			Array<Array<int>>& level = levels[current_level];
 			while (1) {
 				apple_x = rnd_next_range(rnd, 0, 15);
 				apple_y = rnd_next_range(rnd, 0, 11);
@@ -430,7 +412,7 @@ void do_gameplay(coroutine_t* co)
 				break;
 			}
 		}
-		array<array<int>>& level = levels[current_level];
+		Array<Array<int>>& level = levels[current_level];
 		hit_wall = level[snake_y][snake_x] == 2;
 		if (level[snake_y][snake_x] == 3) {
 			// Breakable walls.
@@ -438,7 +420,7 @@ void do_gameplay(coroutine_t* co)
 			if (segments_x.count()) {
 				segments_x.pop();
 				segments_y.pop();
-				sound_params_t params;
+				SoundParams params;
 				params.volume = 2.0f;
 				sound_play(wall, params);
 			} else {
@@ -487,7 +469,7 @@ void do_gameplay(coroutine_t* co)
 			has_hole = true;
 			hole_x = bomb_x;
 			hole_y = bomb_y;
-			sound_params_t params;
+			SoundParams params;
 			params.volume = 2.0f;
 			sound_play(explode, params);
 		}
@@ -508,7 +490,7 @@ void do_gameplay(coroutine_t* co)
 
 		// Eat apple.
 		if (snake_x == apple_x && snake_y == apple_y) {
-			sound_params_t params;
+			SoundParams params;
 			params.volume = 3.0f;
 			sound_play(eat, params);
 			has_apple = false;
@@ -547,60 +529,59 @@ v2 grid2world(int x, int y)
 
 void draw_game(float dt)
 {
-	static sprite_t bg = make_sprite("bg.ase");
-	bg.draw(b);
+	static Sprite bg = make_sprite("bg.ase");
+	bg.draw();
 
 	if (has_bomb) {
 		bomb.transform.p = grid2world(bomb_x, bomb_y);
 		bomb.update(dt);
-		bomb.draw(b);
+		bomb.draw();
 	}
 
 	if (has_hole) {
 		hole.transform.p = grid2world(hole_x, hole_y);
 		hole.update(dt);
-		hole.draw(b);
+		hole.draw();
 	}
 
 	snake_head.transform.p = grid2world(snake_x, snake_y);
-	snake_head.draw(b);
+	snake_head.draw();
 
 	if (has_apple) {
 		apple.transform.p = grid2world(apple_x, apple_y);
-		apple.draw(b);
+		apple.draw();
 	}
 
 	for (int i = 0; i < segments_x.size(); ++i) {
 		snake_segment.transform.p = grid2world(segments_x[i], segments_y[i]);
-		snake_segment.draw(b);
+		snake_segment.draw();
 	}
 
-	array<array<int>>& level = levels[current_level];
+	Array<Array<int>>& level = levels[current_level];
 	for (int y = 0; y < level.size(); ++y) {
 		for (int x = 0; x < level[y].size(); ++x) {
 			if (level[y][x] == 2) {
 				wall.transform.p = grid2world(x, y);
-				wall.draw(b);
+				wall.draw();
 			} else if (level[y][x] == 3) {
 				weak_wall.transform.p = grid2world(x, y);
-				weak_wall.draw(b);
+				weak_wall.draw();
 			}
 		}
 	}
-
-	batch_flush(b);
 }
 
-void do_loop(coroutine_t* co)
+void do_loop(Coroutine* co)
 {
 	cute_preamble(co);
 	title_screen(co);
 
-	array<key_button_t> wasd = { KEY_W, KEY_A, KEY_S, KEY_D };
-	array<key_button_t> arrows = { KEY_UP, KEY_LEFT, KEY_DOWN, KEY_RIGHT };
-	array<v2> dirs = { V2(0, -1), V2(-1, 0), V2(0, 1), V2(1, 0) };
+	Array<KeyButton> wasd = { KEY_W, KEY_A, KEY_S, KEY_D };
+	Array<KeyButton> arrows = { KEY_UP, KEY_LEFT, KEY_DOWN, KEY_RIGHT };
+	Array<v2> dirs = { V2(0, -1), V2(-1, 0), V2(0, 1), V2(1, 0) };
 
-	coroutine_t* gameplay_co = make_coroutine(do_gameplay);
+	Coroutine* gameplay_co = make_coroutine(do_gameplay);
+	s_projection = matrix_ortho_2d(160, 120, 0, 0);
 
 	while (app_is_running()) {
 		float dt = coroutine_yield(co);
@@ -624,7 +605,10 @@ void do_loop(coroutine_t* co)
 		}
 
 		coroutine_resume(gameplay_co, dt);
+		cf_begin_pass(s_pass);
 		draw_game(dt);
+		batch_render(s_projection);
+		cf_end_pass();
 
 		if (ImGui::BeginMainMenuBar()) {
 			if (ImGui::BeginMenu("sokol-gfx")) {
@@ -654,12 +638,13 @@ void main_loop()
 int main(int argc, const char** argv)
 {
 	uint32_t app_options = APP_OPTIONS_DEFAULT_GFX_CONTEXT | APP_OPTIONS_WINDOW_POS_CENTERED;
-	result_t result = make_app("Cute Snake", 0, 0, 640, 480, app_options, argv[0]);
+	Result result = make_app("Cute Snake", 0, 0, 640, 480, app_options, argv[0]);
 	if (is_error(result)) return -1;
-	b = sprite_get_batch();
-	batch_set_projection(b, matrix_ortho_2d(80, 60, 0, 0));
-	app_init_audio();
+	s_projection = matrix_ortho_2d(80, 60, 0, 0);
 	mount_content_folder();
+
+	// For rendering directly to the backbuffer.
+	s_pass = app_get_backbuffer_pass();
 
 	app_init_imgui();
 	sg_imgui = app_get_sokol_imgui();

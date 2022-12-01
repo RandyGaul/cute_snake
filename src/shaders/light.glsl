@@ -1,7 +1,7 @@
 @module light
-@ctype mat4 cute::matrix_t
-@ctype vec4 cute::color_t
-@ctype vec2 cute::v2
+@ctype mat4 Matrix4x4
+@ctype vec4 Color
+@ctype vec2 v2
 
 @vs vs
 @glsl_options flip_vert_y
@@ -13,7 +13,7 @@
 
 	void main()
 	{
-		vec4 posH = u_mvp * vec4(round(in_pos), 0, 1);
+		vec4 posH = u_mvp * vec4(in_pos, 0, 1);
 		gl_Position = posH;
 }
 @end
