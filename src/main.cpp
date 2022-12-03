@@ -1,5 +1,5 @@
 #include <cute.h>
-using namespace cute;
+using namespace Cute;
 
 #include <sokol/sokol_gfx_imgui.h>
 #include <imgui/imgui.h>
@@ -18,13 +18,12 @@ void mount_content_folder()
 	sfree(path);
 }
 
-CF_Matrix4x4 s_projection;
 Coroutine* loop_co;
 Array<v2> s_verts;
 CF_Mesh s_mesh;
 CF_Shader s_shd;
 CF_Material s_material;
-CF_Pass s_pass;
+CF_Canvas s_canvas;
 
 void cute_preamble(Coroutine* co)
 {
@@ -38,13 +37,10 @@ void cute_preamble(Coroutine* co)
 		t += dt;
 		app_update(dt);
 		float tint = smoothstep(remap(t, 0, elapse) * 0.5f);
-		batch_push_tint(make_color(tint, tint, tint));
 		cute.draw();
-		batch_pop_tint();
-		cf_begin_pass(s_pass);
-		cf_batch_render(s_projection);
-		cf_end_pass();
+		render_settings_push_tint(make_color(tint, tint, tint));
 		app_present();
+		render_settings_pop_tint();
 	}
 
 	t = 0;
@@ -53,9 +49,6 @@ void cute_preamble(Coroutine* co)
 		t += dt;
 		app_update(dt);
 		cute.draw();
-		cf_begin_pass(s_pass);
-		cf_batch_render(s_projection);
-		cf_end_pass();
 		app_present();
 	}
 
@@ -65,13 +58,10 @@ void cute_preamble(Coroutine* co)
 		t += dt;
 		app_update(dt);
 		float tint = smoothstep((1.0f - remap(t, 0, elapse)) * 0.5f);
-		batch_push_tint(make_color(tint, tint, tint));
 		cute.draw();
-		batch_pop_tint();
-		cf_begin_pass(s_pass);
-		cf_batch_render(s_projection);
-		cf_end_pass();
+		render_settings_push_tint(make_color(tint, tint, tint));
 		app_present();
+		render_settings_pop_tint();
 	}
 
 	if (key_was_pressed(KEY_ANY)) {
@@ -118,7 +108,7 @@ static void s_circle(float r, v2 p)
 	}
 }
 
-void s_uniforms(Matrix4x4 mvp, color_t color)
+void s_uniforms(Matrix4x4 mvp, Color color)
 {
 	material_set_uniform_vs(s_material, "vs_params", "u_mvp", &mvp, UNIFORM_TYPE_MAT4, 0);
 	material_set_uniform_fs(s_material, "fs_params", "u_color", &color, UNIFORM_TYPE_FLOAT4, 0);
@@ -128,8 +118,8 @@ static void s_draw_white_shapes()
 {
 	mesh_append_vertex_data(s_mesh, s_verts.data(), s_verts.count());
 	apply_mesh(s_mesh);
-	apply_shader(s_shd, s_material);
 	s_uniforms(matrix_ortho_2d(80, 60, 0, 0), make_color(1.0f, 1.0f, 1.0f));
+	apply_shader(s_shd, s_material);
 	draw_elements();
 	s_verts.clear();
 }
@@ -167,9 +157,9 @@ void title_screen(Coroutine* co)
 		float dt = coroutine_yield(co);
 		app_update(dt);
 
-		cf_begin_pass(s_pass);
+		apply_canvas(s_canvas);
 		title.draw();
-		batch_render(s_projection);
+		render_to(s_canvas);
 
 		t += dt * 1.25f;
 		float slice_size = (CUTE_PI / 16.0f) * 0.75f;
@@ -180,11 +170,7 @@ void title_screen(Coroutine* co)
 		s_lightray(t + 2.0f, slice_size * 2.5f, r, c);
 		s_lightray(t + 3.5f, slice_size * 4.5f, r, c);
 		s_lightray(t + 5.0f, slice_size * 2.0f, r, c);
-
 		s_draw_white_shapes();
-
-		cute_snake.draw();
-		batch_render(s_projection);
 
 		static bool skip = false;
 		if (!skip && key_was_pressed(KEY_ANY)) {
@@ -203,7 +189,7 @@ void title_screen(Coroutine* co)
 		}
 
 		s_draw_white_shapes();
-		cf_end_pass();
+		cute_snake.draw();
 
 		app_present();
 	}
@@ -581,7 +567,7 @@ void do_loop(Coroutine* co)
 	Array<v2> dirs = { V2(0, -1), V2(-1, 0), V2(0, 1), V2(1, 0) };
 
 	Coroutine* gameplay_co = make_coroutine(do_gameplay);
-	s_projection = matrix_ortho_2d(160, 120, 0, 0);
+	render_settings_projection(matrix_ortho_2d(160, 120, 0, 0));
 
 	while (app_is_running()) {
 		float dt = coroutine_yield(co);
@@ -605,10 +591,7 @@ void do_loop(Coroutine* co)
 		}
 
 		coroutine_resume(gameplay_co, dt);
-		cf_begin_pass(s_pass);
 		draw_game(dt);
-		batch_render(s_projection);
-		cf_end_pass();
 
 		if (ImGui::BeginMainMenuBar()) {
 			if (ImGui::BeginMenu("sokol-gfx")) {
@@ -640,11 +623,9 @@ int main(int argc, const char** argv)
 	uint32_t app_options = APP_OPTIONS_DEFAULT_GFX_CONTEXT | APP_OPTIONS_WINDOW_POS_CENTERED;
 	Result result = make_app("Cute Snake", 0, 0, 640, 480, app_options, argv[0]);
 	if (is_error(result)) return -1;
-	s_projection = matrix_ortho_2d(80, 60, 0, 0);
+	render_settings_projection(matrix_ortho_2d(80, 60, 0, 0));
 	mount_content_folder();
-
-	// For rendering directly to the backbuffer.
-	s_pass = app_get_backbuffer_pass();
+	s_canvas = app_get_canvas();
 
 	app_init_imgui();
 	sg_imgui = app_get_sokol_imgui();
