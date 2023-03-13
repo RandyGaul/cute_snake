@@ -25,6 +25,17 @@ CF_Shader s_shd;
 CF_Material s_material;
 CF_Canvas s_canvas;
 
+// Helper function to pause the coroutine for a number of seconds.
+void wait(float seconds)
+{
+	Coroutine* co = coroutine_currently_running();
+	float elapsed = 0;
+	while (elapsed < seconds) {
+		coroutine_yield(co);
+		elapsed += CF_DELTA_TIME;
+	}
+}
+
 void cute_preamble(Coroutine* co)
 {
 	Sprite cute = make_sprite("cute.ase");
@@ -33,39 +44,37 @@ void cute_preamble(Coroutine* co)
 	const float pause = 1;
 
 	while (app_is_running() && t < elapse) {
-		float dt = coroutine_yield(co);
-		t += dt;
-		app_update(dt);
-		float tint = smoothstep(remap(t, 0, elapse) * 0.5f);
+		coroutine_yield(co);
+		t += CF_DELTA_TIME;
+		app_update();
+		float tint = smoothstep(remap(t, 0, elapse));
+		cute.opacity = tint;
 		cute.draw();
-		render_settings_push_tint(make_color(tint, tint, tint));
-		app_present();
-		render_settings_pop_tint();
+		app_draw_onto_screen();
 	}
 
 	t = 0;
 	while (app_is_running() && t < pause) {
-		float dt = coroutine_yield(co);
-		t += dt;
-		app_update(dt);
+		coroutine_yield(co);
+		t += CF_DELTA_TIME;
+		app_update();
 		cute.draw();
-		app_present();
+		app_draw_onto_screen();
 	}
 
 	t = 0;
 	while (app_is_running() && t < elapse) {
-		float dt = coroutine_yield(co);
-		t += dt;
-		app_update(dt);
-		float tint = smoothstep((1.0f - remap(t, 0, elapse)) * 0.5f);
+		coroutine_yield(co);
+		t += CF_DELTA_TIME;
+		app_update();
+		float tint = smoothstep((1.0f - remap(t, 0, elapse)));
 		cute.draw();
-		render_settings_push_tint(make_color(tint, tint, tint));
-		app_present();
-		render_settings_pop_tint();
+		cute.opacity = tint;
+		app_draw_onto_screen();
 	}
 
-	if (key_was_pressed(KEY_ANY)) {
-		clear_all_key_state();
+	if (key_just_pressed(KEY_ANY)) {
+		cf_clear_key_states();
 	}
 }
 
@@ -99,7 +108,7 @@ static void s_circle(float r, v2 p)
 	int iters = 20;
 
 	for (int i = 1; i <= iters; ++i) {
-		float a = (i / (float)iters) * (2.0f * CUTE_PI);
+		float a = (i / (float)iters) * (2.0f * CF_PI);
 		v2 next = from_angle(a) * r;
 		s_verts.add(p + prev);
 		s_verts.add(p + next);
@@ -108,17 +117,20 @@ static void s_circle(float r, v2 p)
 	}
 }
 
-void s_uniforms(Matrix4x4 mvp, Color color)
+void s_uniforms(Color color)
 {
-	material_set_uniform_vs(s_material, "vs_params", "u_mvp", &mvp, UNIFORM_TYPE_MAT4, 0);
 	material_set_uniform_fs(s_material, "fs_params", "u_color", &color, UNIFORM_TYPE_FLOAT4, 0);
 }
 
 static void s_draw_white_shapes()
 {
+	v2 scale = V2(1.0f/40,1.0f/30.0f);
+	for (int i = 0; i < s_verts.count(); ++i) {
+		s_verts[i] *= scale;
+	}
 	mesh_append_vertex_data(s_mesh, s_verts.data(), s_verts.count());
 	apply_mesh(s_mesh);
-	s_uniforms(matrix_ortho_2d(80, 60, 0, 0), make_color(1.0f, 1.0f, 1.0f));
+	s_uniforms(make_color(1.0f, 1.0f, 1.0f));
 	apply_shader(s_shd, s_material);
 	draw_elements();
 	s_verts.clear();
@@ -154,15 +166,15 @@ void title_screen(Coroutine* co)
 	float skip_t = 0;
 	bool done = false;
 	while (app_is_running() && !done) {
-		float dt = coroutine_yield(co);
-		app_update(dt);
+		coroutine_yield(co);
+		app_update();
 
 		apply_canvas(s_canvas);
 		title.draw();
 		render_to(s_canvas);
 
-		t += dt * 1.25f;
-		float slice_size = (CUTE_PI / 16.0f) * 0.75f;
+		t += CF_DELTA_TIME * 1.25f;
+		float slice_size = (CF_PI / 16.0f) * 0.75f;
 		float r = 9;
 		v2 c = V2(26, 13);
 		s_lightray(t, slice_size * 2.5f, r, c);
@@ -173,30 +185,36 @@ void title_screen(Coroutine* co)
 		s_draw_white_shapes();
 
 		static bool skip = false;
-		if (!skip && key_was_pressed(KEY_ANY)) {
+		if (!skip && key_just_pressed(KEY_ANY)) {
 			skip = true;
 			SoundParams params;
-			params.volume = 1.25f;
+			params.volume = 10.0f;
 			sound_play(go, params);
 		}
 
 		if (skip) {
-			skip_t += dt;
+			skip_t += CF_DELTA_TIME;
 			s_circle(skip_t * 90.0f, c);
 			if (skip_t >= 0.85f) {
 				done = true;
 			}
 		}
 
-		s_draw_white_shapes();
 		cute_snake.draw();
 
-		app_present();
+		// Draw snake onto the canvas NOW.
+		// Without this the snake will get collected and drawn automatically at the end of the frame, but
+		// this will make the snake appear on-top of the white effect.
+		render_to(s_canvas);
+
+		// Finally, draw our white shapes over the snake.
+		s_draw_white_shapes();
+
+		app_draw_onto_screen();
 	}
 }
 
 Audio* select;
-sg_imgui_t* sg_imgui;
 Audio* song;
 Sprite wall;
 Sprite weak_wall;
@@ -276,7 +294,7 @@ int s_snake_spawn_x()
 			}
 		}
 	}
-	CUTE_ASSERT(false);
+	CF_ASSERT(false);
 	return 0;
 }
 
@@ -290,7 +308,7 @@ int s_snake_spawn_y()
 			}
 		}
 	}
-	CUTE_ASSERT(false);
+	CF_ASSERT(false);
 	return 0;
 }
 
@@ -323,7 +341,7 @@ void die()
 {
 	static Audio* die_sound = audio_load_wav("die.wav");
 	SoundParams params;
-	params.volume = 3.0f;
+	params.volume = 10.0f;
 	sound_play(die_sound, params);
 	clear();
 }
@@ -338,11 +356,11 @@ void do_gameplay(Coroutine* co)
 	snake_x = s_snake_spawn_x();
 	snake_y = s_snake_spawn_y();
 	music_play(song);
-	music_set_volume(0.10f);
+	music_set_volume(0.8f);
 
 	bool done = false;
 	while (!done) {
-		coroutine_wait(co, 0.5f);
+		wait(0.5f);
 
 		// Spawn a random apple if one does not already exist.
 		if (!has_apple) {
@@ -407,7 +425,7 @@ void do_gameplay(Coroutine* co)
 				segments_x.pop();
 				segments_y.pop();
 				SoundParams params;
-				params.volume = 2.0f;
+				params.volume = 10.0f;
 				sound_play(wall, params);
 			} else {
 				ran_out_of_segments = true;
@@ -456,7 +474,7 @@ void do_gameplay(Coroutine* co)
 			hole_x = bomb_x;
 			hole_y = bomb_y;
 			SoundParams params;
-			params.volume = 2.0f;
+			params.volume = 10.0f;
 			sound_play(explode, params);
 		}
 
@@ -477,7 +495,7 @@ void do_gameplay(Coroutine* co)
 		// Eat apple.
 		if (snake_x == apple_x && snake_y == apple_y) {
 			SoundParams params;
-			params.volume = 3.0f;
+			params.volume = 10.0f;
 			sound_play(eat, params);
 			has_apple = false;
 
@@ -513,20 +531,20 @@ v2 grid2world(int x, int y)
 	return V2((float)(x-bw) * tile_dim + x_offset, -(float)(y+bh) * tile_dim + y_offset);
 }
 
-void draw_game(float dt)
+void draw_game()
 {
 	static Sprite bg = make_sprite("bg.ase");
 	bg.draw();
 
 	if (has_bomb) {
 		bomb.transform.p = grid2world(bomb_x, bomb_y);
-		bomb.update(dt);
+		bomb.update();
 		bomb.draw();
 	}
 
 	if (has_hole) {
 		hole.transform.p = grid2world(hole_x, hole_y);
-		hole.update(dt);
+		hole.update();
 		hole.draw();
 	}
 
@@ -561,21 +579,22 @@ void do_loop(Coroutine* co)
 {
 	cute_preamble(co);
 	title_screen(co);
+	cf_clear_color(0.5f,0.5f,0.5f,1.0f);
 
 	Array<KeyButton> wasd = { KEY_W, KEY_A, KEY_S, KEY_D };
 	Array<KeyButton> arrows = { KEY_UP, KEY_LEFT, KEY_DOWN, KEY_RIGHT };
 	Array<v2> dirs = { V2(0, -1), V2(-1, 0), V2(0, 1), V2(1, 0) };
 
 	Coroutine* gameplay_co = make_coroutine(do_gameplay);
-	render_settings_projection(matrix_ortho_2d(160, 120, 0, 0));
+	camera_dimensions(80, 60);
 
 	while (app_is_running()) {
-		float dt = coroutine_yield(co);
-		app_update(dt);
+		coroutine_yield(co);
+		app_update();
 
 		// Handle input.
 		for (int i = 0; i < wasd.size(); ++i) {
-			if (key_was_pressed(wasd[i]) || key_was_pressed(arrows[i])) {
+			if (key_just_pressed(wasd[i]) || key_just_pressed(arrows[i])) {
 				// Cannot turn around 180 in a single move and run into yourself.
 				if (segments_x.size()) {
 					int snake_next_x = (int)(snake_x + dirs[i].x);
@@ -590,23 +609,10 @@ void do_loop(Coroutine* co)
 			}
 		}
 
-		coroutine_resume(gameplay_co, dt);
-		draw_game(dt);
+		coroutine_resume(gameplay_co);
+		draw_game();
 
-		if (ImGui::BeginMainMenuBar()) {
-			if (ImGui::BeginMenu("sokol-gfx")) {
-				ImGui::MenuItem("Buffers", 0, &sg_imgui->buffers.open);
-				ImGui::MenuItem("Images", 0, &sg_imgui->images.open);
-				ImGui::MenuItem("Shaders", 0, &sg_imgui->shaders.open);
-				ImGui::MenuItem("Pipelines", 0, &sg_imgui->pipelines.open);
-				ImGui::MenuItem("Passes", 0, &sg_imgui->passes.open);
-				ImGui::MenuItem("Calls", 0, &sg_imgui->capture.open);
-				ImGui::EndMenu();
-			}
-			ImGui::EndMainMenuBar();
-		}
-
-		app_present();
+		app_draw_onto_screen();
 	}
 
 	destroy_coroutine(gameplay_co);
@@ -614,21 +620,22 @@ void do_loop(Coroutine* co)
 
 void main_loop()
 {
-	float dt = calc_dt();
-	coroutine_resume(loop_co, dt);
+	coroutine_resume(loop_co);
 }
 
-int main(int argc, const char** argv)
+int main(int argc, char** argv)
 {
+	// Due to a small limitation in sokol_gfx we must set clear color here for the first frame.
+	cf_clear_color(0,0,0,0);
+
 	uint32_t app_options = APP_OPTIONS_DEFAULT_GFX_CONTEXT | APP_OPTIONS_WINDOW_POS_CENTERED;
 	Result result = make_app("Cute Snake", 0, 0, 640, 480, app_options, argv[0]);
 	if (is_error(result)) return -1;
-	render_settings_projection(matrix_ortho_2d(80, 60, 0, 0));
+	camera_dimensions(80, 60);
 	mount_content_folder();
 	s_canvas = app_get_canvas();
 
 	app_init_imgui();
-	sg_imgui = app_get_sokol_imgui();
 
 	song = audio_load_ogg("melody2-Very-Sorry.ogg");
 	select = audio_load_wav("select.wav");
@@ -642,10 +649,10 @@ int main(int argc, const char** argv)
 	bomb.local_offset = V2(1, 1);
 
 	// Has to be larger than default size so that d3d11 funcs don't crash on stack overflow.
-	int stack_size = CUTE_MB;
+	int stack_size = CF_MB;
 	loop_co = make_coroutine(do_loop, stack_size);
 
-#ifdef CUTE_EMSCRIPTEN
+#ifdef CF_EMSCRIPTEN
 	emscripten_set_main_loop(main_loop, 0, true);
 #else
 	while (app_is_running()) {
