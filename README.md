@@ -29,3 +29,9 @@ cmake --build build_bash
 ```
 
 This example uses cmake's FetchContent feature to download and build CF the first time Snake is built.
+
+## Web Build
+
+If you'd like to try out the web build, be sure to [follow along here](https://randygaul.github.io/cute_framework/#/topics/emscripten) to get setup with the Emscripten compiler. Once done you can try running `emscripten.cmd` on Windows to generate an emscripten build via CMake. It doesn't do much internally, just a few commands from the [Emscripten docs](https://emscripten.org/docs/compiling/Building-Projects.html) on using `emcmake` and `emmake` to build.
+
+You can run `emscripten.cmd -run` to create a launch the demo in your default web browser, or `emrun --verbose snake.html` manually from your CMake build folder.
