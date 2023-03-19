@@ -214,7 +214,7 @@ void title_screen(Coroutine* co)
 	}
 }
 
-Audio* select;
+Audio* select_fx;
 Audio* song;
 Sprite wall;
 Sprite weak_wall;
@@ -638,7 +638,7 @@ int main(int argc, char** argv)
 	app_init_imgui();
 
 	song = audio_load_ogg("melody2-Very-Sorry.ogg");
-	select = audio_load_wav("select.wav");
+	select_fx = audio_load_wav("select.wav");
 	snake_head = make_sprite("snake_head.ase");
 	snake_segment = make_sprite("snake_segment.ase");
 	apple = make_sprite("apple.ase");
