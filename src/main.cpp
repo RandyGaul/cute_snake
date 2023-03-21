@@ -660,7 +660,6 @@ int main(int argc, char** argv)
 	}
 #endif
 
-	make_coroutine(do_loop);
 	destroy_app();
 
 	return 0;
