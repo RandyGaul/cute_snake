@@ -7,7 +7,7 @@ using namespace Cute;
 
 void mount_content_folder()
 {
-	char* path = spnorm(fs_get_base_dir());
+	char* path = spnorm(cf_fs_get_base_directory());
 	int n = 1;
 #ifdef _MSC_VER
 	n = 2;
@@ -18,17 +18,16 @@ void mount_content_folder()
 	sfree(path);
 }
 
-Coroutine* loop_co;
+Coroutine loop_co;
 Array<v2> s_verts;
 CF_Mesh s_mesh;
 CF_Shader s_shd;
 CF_Material s_material;
-CF_Canvas s_canvas;
 
 // Helper function to pause the coroutine for a number of seconds.
 void wait(float seconds)
 {
-	Coroutine* co = coroutine_currently_running();
+	Coroutine co = coroutine_currently_running();
 	float elapsed = 0;
 	while (elapsed < seconds) {
 		coroutine_yield(co);
@@ -36,7 +35,7 @@ void wait(float seconds)
 	}
 }
 
-void cute_preamble(Coroutine* co)
+void cute_preamble(Coroutine co)
 {
 	Sprite cute = make_sprite("cute.ase");
 	float t = 0;
@@ -47,7 +46,8 @@ void cute_preamble(Coroutine* co)
 		coroutine_yield(co);
 		t += CF_DELTA_TIME;
 		app_update();
-		float tint = smoothstep(remap(t, 0, elapse));
+		camera_dimensions(80, 60);
+		float tint = smoothstep(remap(t, 0, elapse, 0, 1));
 		cute.opacity = tint;
 		cute.draw();
 		app_draw_onto_screen();
@@ -58,6 +58,7 @@ void cute_preamble(Coroutine* co)
 		coroutine_yield(co);
 		t += CF_DELTA_TIME;
 		app_update();
+		camera_dimensions(80, 60);
 		cute.draw();
 		app_draw_onto_screen();
 	}
@@ -67,7 +68,8 @@ void cute_preamble(Coroutine* co)
 		coroutine_yield(co);
 		t += CF_DELTA_TIME;
 		app_update();
-		float tint = smoothstep((1.0f - remap(t, 0, elapse)));
+		camera_dimensions(80, 60);
+		float tint = smoothstep((1.0f - remap(t, 0, elapse, 0, 1)));
 		cute.draw();
 		cute.opacity = tint;
 		app_draw_onto_screen();
@@ -136,11 +138,11 @@ static void s_draw_white_shapes()
 	s_verts.clear();
 }
 
-void title_screen(Coroutine* co)
+void title_screen(Coroutine co)
 {
 	Sprite title = make_sprite("title.ase");
 	Sprite cute_snake = make_sprite("cute_snake.ase");
-	Audio* go = audio_load_wav("go.wav");
+	Audio go = audio_load_wav("go.wav");
 	s_shd = CF_MAKE_SOKOL_SHADER(light_shd);
 
 	s_mesh = make_mesh(USAGE_TYPE_STREAM, sizeof(v2) * 1024, 0, 0);
@@ -168,10 +170,11 @@ void title_screen(Coroutine* co)
 	while (app_is_running() && !done) {
 		coroutine_yield(co);
 		app_update();
+		camera_dimensions(80, 60);
+		apply_canvas(app_get_canvas());
 
-		apply_canvas(s_canvas);
 		title.draw();
-		render_to(s_canvas);
+		render_to(app_get_canvas());
 
 		t += CF_DELTA_TIME * 1.25f;
 		float slice_size = (CF_PI / 16.0f) * 0.75f;
@@ -183,6 +186,13 @@ void title_screen(Coroutine* co)
 		s_lightray(t + 3.5f, slice_size * 4.5f, r, c);
 		s_lightray(t + 5.0f, slice_size * 2.0f, r, c);
 		s_draw_white_shapes();
+
+		cute_snake.draw();
+
+		// Draw snake onto the canvas NOW.
+		// Without this the snake will get collected and drawn automatically at the end of the frame, but
+		// this will make the snake appear on-top of the white effect.
+		render_to(app_get_canvas());
 
 		static bool skip = false;
 		if (!skip && key_just_pressed(KEY_ANY)) {
@@ -200,22 +210,14 @@ void title_screen(Coroutine* co)
 			}
 		}
 
-		cute_snake.draw();
-
-		// Draw snake onto the canvas NOW.
-		// Without this the snake will get collected and drawn automatically at the end of the frame, but
-		// this will make the snake appear on-top of the white effect.
-		render_to(s_canvas);
-
-		// Finally, draw our white shapes over the snake.
 		s_draw_white_shapes();
 
-		app_draw_onto_screen();
+		app_draw_onto_screen(false);
 	}
 }
 
-Audio* select_fx;
-Audio* song;
+Audio select_fx;
+Audio song;
 Sprite wall;
 Sprite weak_wall;
 Sprite bomb;
@@ -339,19 +341,19 @@ void clear()
 
 void die()
 {
-	static Audio* die_sound = audio_load_wav("die.wav");
+	static Audio die_sound = audio_load_wav("die.wav");
 	SoundParams params;
 	params.volume = 10.0f;
 	sound_play(die_sound, params);
 	clear();
 }
 
-void do_gameplay(Coroutine* co)
+void do_gameplay(Coroutine co)
 {
 	Rnd rnd = rnd_seed((uint64_t)time(0));
-	Audio* eat = audio_load_wav("eat.wav");
-	Audio* explode = audio_load_wav("explode.wav");
-	Audio* wall = audio_load_wav("wall.wav");
+	Audio eat = audio_load_wav("eat.wav");
+	Audio explode = audio_load_wav("explode.wav");
+	Audio wall = audio_load_wav("wall.wav");
 
 	snake_x = s_snake_spawn_x();
 	snake_y = s_snake_spawn_y();
@@ -367,8 +369,8 @@ void do_gameplay(Coroutine* co)
 			has_apple = true;
 			Array<Array<int>>& level = levels[current_level];
 			while (1) {
-				apple_x = rnd_next_range(rnd, 0, 15);
-				apple_y = rnd_next_range(rnd, 0, 11);
+				apple_x = rnd_range(rnd, 0, 15);
+				apple_y = rnd_range(rnd, 0, 11);
 
 				// Try again if spawned on walls or the player.
 				bool on_snake = apple_x == snake_x && apple_y == snake_y;
@@ -440,8 +442,8 @@ void do_gameplay(Coroutine* co)
 		if (!has_hole && segments_x.size() >= 5 && has_bomb == false) {
 			has_bomb = true;
 			while (1) {
-				bomb_x = rnd_next_range(rnd, 0, 15);
-				bomb_y = rnd_next_range(rnd, 0, 11);
+				bomb_x = rnd_range(rnd, 0, 15);
+				bomb_y = rnd_range(rnd, 0, 11);
 
 				// Try again if spawned on walls or the player.
 				int tile = level[bomb_y][bomb_x];
@@ -575,7 +577,7 @@ void draw_game()
 	}
 }
 
-void do_loop(Coroutine* co)
+void do_loop(Coroutine co)
 {
 	cute_preamble(co);
 	title_screen(co);
@@ -585,12 +587,12 @@ void do_loop(Coroutine* co)
 	Array<KeyButton> arrows = { KEY_UP, KEY_LEFT, KEY_DOWN, KEY_RIGHT };
 	Array<v2> dirs = { V2(0, -1), V2(-1, 0), V2(0, 1), V2(1, 0) };
 
-	Coroutine* gameplay_co = make_coroutine(do_gameplay);
-	camera_dimensions(80, 60);
+	Coroutine gameplay_co = make_coroutine(do_gameplay);
 
 	while (app_is_running()) {
 		coroutine_yield(co);
 		app_update();
+		camera_dimensions(80, 60);
 
 		// Handle input.
 		for (int i = 0; i < wasd.size(); ++i) {
@@ -633,7 +635,6 @@ int main(int argc, char** argv)
 	if (is_error(result)) return -1;
 	camera_dimensions(80, 60);
 	mount_content_folder();
-	s_canvas = app_get_canvas();
 
 	app_init_imgui();
 
