@@ -12,6 +12,8 @@ endif()
 set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR})
 
 set(CUTE_FRAMEWORK_STATIC ON)
+set(CF_FRAMEWORK_BUILD_SAMPLES OFF)
+set(CF_FRAMEWORK_BUILD_TESTS OFF)
 
 # This will download and build Cute Framework just once the first time you build your game.
 # There are other ways to get cute, such as downloading and installing prebuilt binaries, or

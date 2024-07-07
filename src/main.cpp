@@ -46,7 +46,7 @@ void cute_preamble(Coroutine co)
 		coroutine_yield(co);
 		t += CF_DELTA_TIME;
 		app_update();
-		camera_dimensions(80, 60);
+		draw_scale(8,8);
 		float tint = smoothstep(remap(t, 0, elapse, 0, 1));
 		cute.opacity = tint;
 		cute.draw();
@@ -58,7 +58,7 @@ void cute_preamble(Coroutine co)
 		coroutine_yield(co);
 		t += CF_DELTA_TIME;
 		app_update();
-		camera_dimensions(80, 60);
+		draw_scale(8,8);
 		cute.draw();
 		app_draw_onto_screen();
 	}
@@ -68,7 +68,7 @@ void cute_preamble(Coroutine co)
 		coroutine_yield(co);
 		t += CF_DELTA_TIME;
 		app_update();
-		camera_dimensions(80, 60);
+		draw_scale(8,8);
 		float tint = smoothstep((1.0f - remap(t, 0, elapse, 0, 1)));
 		cute.draw();
 		cute.opacity = tint;
@@ -170,7 +170,7 @@ void title_screen(Coroutine co)
 	while (app_is_running() && !done) {
 		coroutine_yield(co);
 		app_update();
-		camera_dimensions(80, 60);
+		draw_scale(8,8);
 		apply_canvas(app_get_canvas());
 
 		title.draw();
@@ -592,7 +592,7 @@ void do_loop(Coroutine co)
 	while (app_is_running()) {
 		coroutine_yield(co);
 		app_update();
-		camera_dimensions(80, 60);
+		draw_scale(8,8);
 
 		// Handle input.
 		for (int i = 0; i < wasd.size(); ++i) {
@@ -625,6 +625,9 @@ void main_loop()
 	coroutine_resume(loop_co);
 }
 
+// NOTE -- This sample is a bit complex for what it is, and showcases some experiments with coroutines.
+//         There are likely simpler ways to implement a game like this, but, overall it does show how to use
+//         a good variety of fundamental CF functions.
 int main(int argc, char** argv)
 {
 	// Due to a small limitation in sokol_gfx we must set clear color here for the first frame.
@@ -633,7 +636,7 @@ int main(int argc, char** argv)
 	uint32_t app_options = APP_OPTIONS_DEFAULT_GFX_CONTEXT | APP_OPTIONS_WINDOW_POS_CENTERED;
 	Result result = make_app("Cute Snake", 0, 0, 640, 480, app_options, argv[0]);
 	if (is_error(result)) return -1;
-	camera_dimensions(80, 60);
+	draw_scale(8,8);
 	mount_content_folder();
 
 	app_init_imgui();
